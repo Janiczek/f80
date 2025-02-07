@@ -1,0 +1,39 @@
+const counterLabel = "Counter: "
+const textX = 5
+const counterX = textX + String.length(counterLabel)
+const counterY = 5
+const helpY = counterY + 1
+
+main() {
+  let counter = 0
+  let previousCounter = 0
+  renderText()
+  loop {
+    renderCounter(counter, previousCounter)
+    previousCounter = counter
+    wait for keyboard {
+      Key.Plus -> { counter += 1 }
+      Key.Minus -> { if (counter > 0) { counter -= 1 } }
+    }
+  }
+}
+
+renderText() {
+  Render.text(textX, counterY, counterLabel)
+  Render.text(textX, helpY, "Press + or -")
+}
+
+renderCounter(counter, previous) {
+  const counterStr = String.fromI16(counter)
+  cleanupCounter(counterStr, previous)
+  Render.text(counterX, counterY, counterStr)
+}
+
+// needed when going 10 -> 9, 100 -> 99, etc.
+cleanupCounter(counterStr, previous) {
+  const lenPrevious = String.length(String.fromI16(previous))
+  const lenCounter = String.length(counterStr)
+  if (lenCounter < lenPrevious) {
+    Render.text(counterX + lenCounter, counterY, " ")
+  }
+}

@@ -1,9 +1,9 @@
 port module F80 exposing (main)
 
 import Example
+import F80.Emitter
 import F80.Error
 import F80.Parser
-import F80.Z80Asm
 import Parser
 
 
@@ -25,8 +25,8 @@ run sourceCode =
         |> Result.andThen (F80.Parser.parse >> Result.mapError F80.Error.ParserError)
         |> Debug.log "parsed"
         -- TODO: F80.TypeInference.infer
-        |> Result.andThen (F80.Z80Asm.assemble >> Result.mapError F80.Error.AsmError)
-        |> Debug.log "assembled"
+        |> Result.andThen (F80.Emitter.emit >> Result.mapError F80.Error.EmitterError)
+        |> Debug.log "emitted"
 
 
 init : () -> ( (), Cmd Never )

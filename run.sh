@@ -3,6 +3,6 @@
 set -e
 set -o pipefail
 
-npx elm-esm make src/F80.elm --output=F80.elm.js
-mv F80.elm.js F80.elm.mjs
+npx elm-esm make src/Compiler.elm --output=Compiler.elm.js
+mv Compiler.elm.js Compiler.elm.mjs
 node F80.mjs

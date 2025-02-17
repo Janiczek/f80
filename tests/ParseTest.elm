@@ -1,8 +1,6 @@
-module ParserTest exposing (suite)
+module ParseTest exposing (suite)
 
-import Example
-import Expect exposing (Expectation)
-import F80.AST
+import AST
     exposing
         ( BinOp(..)
         , Decl(..)
@@ -10,8 +8,10 @@ import F80.AST
         , KeyPattern(..)
         , Stmt(..)
         )
-import F80.Parser
+import Example
+import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
+import Parse
 import Test exposing (Test)
 
 
@@ -32,7 +32,7 @@ programTests =
         [ Test.test "parses empty program" <|
             \_ ->
                 ""
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal (Ok [])
         , Test.test "parses multiple declarations" <|
             \_ ->
@@ -45,7 +45,7 @@ bar(x) {
     foo(x)
 }
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -73,7 +73,7 @@ bar(x) {
         , Test.test "parses the Counter example" <|
             \() ->
                 Example.sourceCode
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal (Ok Example.ast)
         ]
 
@@ -95,7 +95,7 @@ constDeclTests =
 const x = 42
 const y = "hello"
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ ConstDecl { name = "x", expr = Int 42 }
@@ -115,7 +115,7 @@ main() {
     foo(42, "hello")
 }
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -137,7 +137,7 @@ foo(x, y) {
     bar(x, y)
 }
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -181,7 +181,7 @@ main() {
     }
 }
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -208,7 +208,7 @@ main() {
     }
 }
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -226,7 +226,7 @@ main() {
     wait for keyboard {}
 }
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -246,7 +246,7 @@ main() {
     }
 }
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -294,7 +294,7 @@ main() {
     }
 }
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -314,7 +314,7 @@ main() {
     }
 }
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -340,7 +340,7 @@ main() {
     }
 }
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -367,7 +367,7 @@ main() {
     }
 }
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -392,7 +392,7 @@ main() {
     }
 }
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -415,7 +415,7 @@ main() {
     if (x) {}
 }
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -444,7 +444,7 @@ main() {
     const y = "hello"
 }
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -469,7 +469,7 @@ main() {
     let x = 42
 }
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -496,7 +496,7 @@ main() {
     x -= 2
 }
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -517,7 +517,7 @@ main() {
     x += foo(42)
 }
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -546,7 +546,7 @@ main() {
     foo(1, 2)
 }
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -571,7 +571,7 @@ main() {
     )
 }
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -593,7 +593,7 @@ main() {
     foo()
 }
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -629,7 +629,7 @@ varTests =
         [ Test.test "parses variable references" <|
             \_ ->
                 "main() { let x = foo }"
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -653,7 +653,7 @@ intTests =
         [ Test.test "parses integer literals" <|
             \_ ->
                 "main() { let x = 42 }"
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -677,7 +677,7 @@ stringTests =
         [ Test.test "parses string literals" <|
             \_ ->
                 "main() { let x = \"hello\" }"
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -705,7 +705,7 @@ binOpTests =
                     "main() { let x = 1 "
                         ++ op
                         ++ " 2 }"
-                        |> F80.Parser.parse
+                        |> Parse.parse
                         |> Expect.equal
                             (Ok
                                 [ FnDecl
@@ -736,7 +736,7 @@ callExprTests =
         [ Test.test "parses function calls" <|
             \_ ->
                 "main() { let x = foo(1, 2) }"
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -758,7 +758,7 @@ callExprTests =
         , Test.test "optional trailing comma" <|
             \_ ->
                 "main() { let x = foo(1, 2,) }"
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -786,7 +786,7 @@ main() {
         2
     ) 
 }"""
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -808,7 +808,7 @@ main() {
         , Test.test "empty arg list" <|
             \_ ->
                 "main() { let x = foo() }"
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -836,7 +836,7 @@ ifExprTests =
         [ Test.test "parses if expressions" <|
             \_ ->
                 "main() { let x = if (a > b) 1 else 2 }"
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -875,7 +875,7 @@ lineCommentTests =
 // Comment
 main() {}
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -890,7 +890,7 @@ main() {}
                 """
 main() {} // Comment
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -907,7 +907,7 @@ main() {
  // Comment
 }
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -923,7 +923,7 @@ main() {
 main() {
 } // Comment
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -940,7 +940,7 @@ main() {
 }
 // Comment
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -959,7 +959,7 @@ main() {
  bar()
 }
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl
@@ -979,7 +979,7 @@ main() {}
 // Comment
 foo() {}
 """
-                    |> F80.Parser.parse
+                    |> Parse.parse
                     |> Expect.equal
                         (Ok
                             [ FnDecl

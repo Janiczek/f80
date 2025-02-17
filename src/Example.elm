@@ -1,6 +1,6 @@
-module Example exposing (ast, sourceCode)
+module Example exposing (ast, emittedAsm, sourceCode)
 
-import F80.AST
+import AST
     exposing
         ( BinOp(..)
         , Decl(..)
@@ -8,6 +8,7 @@ import F80.AST
         , KeyPattern(..)
         , Stmt(..)
         )
+import Asm
 
 
 sourceCode : String
@@ -55,7 +56,7 @@ cleanupCounter(counterStr, previous) {
 """
 
 
-ast : F80.AST.Program
+ast : AST.Program
 ast =
     [ ConstDecl
         { name = "counterLabel"
@@ -261,4 +262,12 @@ ast =
                 }
             ]
         }
+    ]
+
+
+emittedAsm : Asm.Program
+emittedAsm =
+    [ Asm.Label "main"
+
+    -- TODO
     ]

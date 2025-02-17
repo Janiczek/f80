@@ -1,7 +1,7 @@
-module F80.Parser exposing (Error, parse)
+module Parse exposing (Error, parse)
 
+import AST exposing (BinOp(..), Decl, Expr(..))
 import Char
-import F80.AST exposing (BinOp(..), Decl, Expr(..))
 import Parser exposing ((|.), (|=), Parser)
 import Pratt
 import Set exposing (Set)
@@ -11,19 +11,19 @@ type alias Error =
     List Parser.DeadEnd
 
 
-parse : String -> Result Error F80.AST.Program
+parse : String -> Result Error AST.Program
 parse sourceCode =
     Parser.run program sourceCode
 
 
-program : Parser F80.AST.Program
+program : Parser AST.Program
 program =
     Parser.succeed identity
         |. spacesAndNewlines
         |= wsList spacesAndNewlines decl
 
 
-decl : Parser F80.AST.Decl
+decl : Parser AST.Decl
 decl =
     Parser.oneOf
         [ constDecl
@@ -32,9 +32,9 @@ decl =
         |> atLineBeginning
 
 
-constDecl : Parser F80.AST.Decl
+constDecl : Parser AST.Decl
 constDecl =
-    (Parser.succeed F80.AST.ConstDeclData
+    (Parser.succeed AST.ConstDeclData
         |. Parser.symbol "const"
         |. spacesOnly
         |= identifier
@@ -43,21 +43,21 @@ constDecl =
         |. spacesOnly
         |= expr
     )
-        |> Parser.map F80.AST.ConstDecl
+        |> Parser.map AST.ConstDecl
 
 
-fnDecl : Parser F80.AST.Decl
+fnDecl : Parser AST.Decl
 fnDecl =
-    (Parser.succeed F80.AST.FnDeclData
+    (Parser.succeed AST.FnDeclData
         |= identifier
         |= paramList
         |. spacesOnly
         |= block
     )
-        |> Parser.map F80.AST.FnDecl
+        |> Parser.map AST.FnDecl
 
 
-paramList : Parser (List F80.AST.Param)
+paramList : Parser (List AST.Param)
 paramList =
     Parser.sequence
         { start = "("
@@ -81,12 +81,12 @@ argList =
         }
 
 
-param : Parser F80.AST.Param
+param : Parser AST.Param
 param =
     identifier
 
 
-block : Parser F80.AST.Block
+block : Parser AST.Block
 block =
     Parser.succeed identity
         |. Parser.symbol "{"
@@ -96,7 +96,7 @@ block =
         |. Parser.symbol "}"
 
 
-stmt : Parser F80.AST.Stmt
+stmt : Parser AST.Stmt
 stmt =
     Parser.succeed identity
         |. spacesOnly
@@ -118,9 +118,9 @@ stmt =
             ]
 
 
-waitForKeyboardStmt : Parser F80.AST.Stmt
+waitForKeyboardStmt : Parser AST.Stmt
 waitForKeyboardStmt =
-    Parser.succeed F80.AST.WaitForKeyboard
+    Parser.succeed AST.WaitForKeyboard
         |. Parser.symbol "wait for keyboard"
         |. spacesAndNewlines
         |. Parser.symbol "{"
@@ -130,9 +130,9 @@ waitForKeyboardStmt =
         |. Parser.symbol "}"
 
 
-waitForKeyboardItem : Parser F80.AST.WaitForKeyboardItem
+waitForKeyboardItem : Parser AST.WaitForKeyboardItem
 waitForKeyboardItem =
-    Parser.succeed F80.AST.WaitForKeyboardItem
+    Parser.succeed AST.WaitForKeyboardItem
         |. spacesOnly
         |= keyPattern
         |. spacesOnly
@@ -141,25 +141,25 @@ waitForKeyboardItem =
         |= Parser.lazy (\() -> block)
 
 
-keyPattern : Parser F80.AST.KeyPattern
+keyPattern : Parser AST.KeyPattern
 keyPattern =
     Parser.oneOf
-        [ Parser.succeed F80.AST.KeyPattern_Plus |. Parser.symbol "Key.Plus"
-        , Parser.succeed F80.AST.KeyPattern_Minus |. Parser.symbol "Key.Minus"
+        [ Parser.succeed AST.KeyPattern_Plus |. Parser.symbol "Key.Plus"
+        , Parser.succeed AST.KeyPattern_Minus |. Parser.symbol "Key.Minus"
         ]
 
 
-loopStmt : Parser F80.AST.Stmt
+loopStmt : Parser AST.Stmt
 loopStmt =
-    Parser.succeed F80.AST.Loop
+    Parser.succeed AST.Loop
         |. Parser.symbol "loop"
         |. spacesOnly
         |= Parser.lazy (\() -> block)
 
 
-ifStmt : Parser F80.AST.Stmt
+ifStmt : Parser AST.Stmt
 ifStmt =
-    (Parser.succeed F80.AST.IfStmtData
+    (Parser.succeed AST.IfStmtData
         |. Parser.symbol "if"
         |. spacesOnly
         |. Parser.symbol "("
@@ -177,12 +177,12 @@ ifStmt =
                 |= Parser.lazy (\() -> block)
             )
     )
-        |> Parser.map F80.AST.If
+        |> Parser.map AST.If
 
 
-defineConstStmt : Parser F80.AST.Stmt
+defineConstStmt : Parser AST.Stmt
 defineConstStmt =
-    (Parser.succeed F80.AST.DefineConstData
+    (Parser.succeed AST.DefineConstData
         |. Parser.symbol "const"
         |. spacesOnly
         |= identifier
@@ -191,12 +191,12 @@ defineConstStmt =
         |. spacesOnly
         |= expr
     )
-        |> Parser.map F80.AST.DefineConst
+        |> Parser.map AST.DefineConst
 
 
-defineLetStmt : Parser F80.AST.Stmt
+defineLetStmt : Parser AST.Stmt
 defineLetStmt =
-    (Parser.succeed F80.AST.DefineLetData
+    (Parser.succeed AST.DefineLetData
         |. Parser.symbol "let"
         |. spacesOnly
         |= identifier
@@ -205,12 +205,12 @@ defineLetStmt =
         |. spacesOnly
         |= expr
     )
-        |> Parser.map F80.AST.DefineLet
+        |> Parser.map AST.DefineLet
 
 
-assignStmt : String -> Parser F80.AST.Stmt
+assignStmt : String -> Parser AST.Stmt
 assignStmt id =
-    (Parser.succeed (F80.AST.AssignData id)
+    (Parser.succeed (AST.AssignData id)
         |. spacesOnly
         |= Parser.oneOf
             [ Parser.succeed Nothing |. Parser.symbol "="
@@ -220,15 +220,15 @@ assignStmt id =
         |. spacesOnly
         |= expr
     )
-        |> Parser.map F80.AST.Assign
+        |> Parser.map AST.Assign
 
 
-callStmt : Expr -> Parser F80.AST.Stmt
+callStmt : Expr -> Parser AST.Stmt
 callStmt expr_ =
-    (Parser.succeed (F80.AST.CallData expr_)
+    (Parser.succeed (AST.CallData expr_)
         |= argList
     )
-        |> Parser.map F80.AST.CallStmt
+        |> Parser.map AST.CallStmt
 
 
 expr : Parser Expr
@@ -264,19 +264,19 @@ parenthesizedExpr config =
 
 varExpr : Parser Expr
 varExpr =
-    Parser.succeed F80.AST.Var
+    Parser.succeed AST.Var
         |= identifier
 
 
 intExpr : Parser Expr
 intExpr =
-    Parser.succeed F80.AST.Int
+    Parser.succeed AST.Int
         |= Parser.int
 
 
 stringExpr : Parser Expr
 stringExpr =
-    Parser.succeed F80.AST.String
+    Parser.succeed AST.String
         |. Parser.symbol "\""
         |= (Parser.chompWhile (\c -> c /= '"')
                 |> Parser.getChompedString
@@ -290,7 +290,7 @@ callExpr config =
     , \left ->
         Parser.succeed
             (\args ->
-                F80.AST.CallExpr
+                AST.CallExpr
                     { fn = left
                     , args = args
                     }
@@ -301,7 +301,7 @@ callExpr config =
 
 ifExpr : Pratt.Config Expr -> Parser Expr
 ifExpr config =
-    (Parser.succeed F80.AST.IfExprData
+    (Parser.succeed AST.IfExprData
         |. Parser.symbol "if"
         |. spacesOnly
         |. Parser.symbol "("
@@ -316,19 +316,19 @@ ifExpr config =
         |. spacesOnly
         |= Pratt.subExpression 0 config
     )
-        |> Parser.map F80.AST.IfExpr
+        |> Parser.map AST.IfExpr
 
 
 binOpExpr : BinOp -> Expr -> Expr -> Expr
 binOpExpr op left right =
-    F80.AST.BinOp
+    AST.BinOp
         { op = op
         , left = left
         , right = right
         }
 
 
-binOp : Parser F80.AST.BinOp
+binOp : Parser AST.BinOp
 binOp =
     Parser.oneOf
         [ Parser.symbol "+" |> Parser.map (\_ -> BOp_Add)

@@ -1,4 +1,4 @@
-module F80.AST exposing
+module AST exposing
     ( Program
     , Decl(..)
     , ConstDeclData, FnDeclData
@@ -10,7 +10,7 @@ module F80.AST exposing
     , KeyPattern(..)
     )
 
-{-|
+{-| The front-end syntax of the language.
 
 @docs Program
 
@@ -65,6 +65,7 @@ type Stmt
     | DefineLet DefineLetData
     | Assign AssignData
     | CallStmt CallData
+    | Return (Maybe Expr)
 
 
 type alias AssignData =

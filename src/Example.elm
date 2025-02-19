@@ -7,6 +7,7 @@ import F80.AST
         , Expr(..)
         , KeyPattern(..)
         , Stmt(..)
+        , Value(..)
         )
 
 
@@ -57,38 +58,34 @@ cleanupCounter(counterStr, previous) {
 
 ast : F80.AST.Program
 ast =
-    [ ConstDecl
+    [ GlobalDecl
         { name = "counterLabel"
-        , expr = String "Counter: "
+        , value = VString "Counter: "
         }
-    , ConstDecl
+    , GlobalDecl
         { name = "textX"
-        , expr = Int 5
+        , value = VInt 5
         }
-    , ConstDecl
+    , GlobalDecl
         { name = "counterX"
-        , expr =
-            BinOp
+        , value =
+            VBinOp
                 { op = BOp_Add
-                , left = Var "textX"
-                , right =
-                    CallExpr
-                        { fn = Var "String.length"
-                        , args = [ Var "counterLabel" ]
-                        }
+                , left = VGlobal "textX"
+                , right = VStringLength (VGlobal "counterLabel")
                 }
         }
-    , ConstDecl
+    , GlobalDecl
         { name = "counterY"
-        , expr = Int 5
+        , value = VInt 5
         }
-    , ConstDecl
+    , GlobalDecl
         { name = "helpY"
-        , expr =
-            BinOp
+        , value =
+            VBinOp
                 { op = BOp_Add
-                , left = Var "counterY"
-                , right = Int 1
+                , left = VGlobal "counterY"
+                , right = VInt 1
                 }
         }
     , FnDecl

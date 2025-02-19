@@ -1,12 +1,13 @@
 module F80.AST exposing
     ( Program
     , Decl(..)
-    , ConstDeclData, FnDeclData
+    , GlobalDeclData, FnDeclData
     , Param
     , Block
     , Stmt(..), WaitForKeyboardItem, CallData, IfStmtData, AssignData
     , DefineConstData, DefineLetData
     , Expr(..), BinOp(..), IfExprData, BinOpData
+    , Value(..)
     , KeyPattern(..)
     )
 
@@ -15,13 +16,14 @@ module F80.AST exposing
 @docs Program
 
 @docs Decl
-@docs ConstDeclData, FnDeclData
+@docs GlobalDeclData, FnDeclData
 
 @docs Param
 @docs Block
 @docs Stmt, WaitForKeyboardItem, CallData, IfStmtData, AssignData
 @docs DefineConstData, DefineLetData
 @docs Expr, BinOp, IfExprData, BinOpData
+@docs Value
 @docs KeyPattern
 
 -}
@@ -32,13 +34,29 @@ type alias Program =
 
 
 type Decl
-    = ConstDecl ConstDeclData
+    = GlobalDecl GlobalDeclData
     | FnDecl FnDeclData
 
 
-type alias ConstDeclData =
+type alias GlobalDeclData =
     { name : String
-    , expr : Expr
+    , value : Value
+    }
+
+
+type Value
+    = VGlobal String
+    | VInt Int
+    | VString String
+    | VBytes (List Int)
+    | VBinOp VBinOpData
+    | VStringLength Value
+
+
+type alias VBinOpData =
+    { left : Value
+    , op : BinOp
+    , right : Value
     }
 
 

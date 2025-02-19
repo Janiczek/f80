@@ -1,7 +1,7 @@
 module F80.Parser exposing (Error, parse)
 
 import Char
-import F80.AST exposing (BinOp(..), Decl, Expr(..))
+import F80.AST exposing (BinOp(..), Decl, Expr(..), Value(..))
 import Parser exposing ((|.), (|=), Parser)
 import Pratt
 import Set exposing (Set)
@@ -26,24 +26,24 @@ program =
 decl : Parser F80.AST.Decl
 decl =
     Parser.oneOf
-        [ constDecl
+        [ globalDecl
         , fnDecl
         ]
         |> atLineBeginning
 
 
-constDecl : Parser F80.AST.Decl
-constDecl =
-    (Parser.succeed F80.AST.ConstDeclData
+globalDecl : Parser F80.AST.Decl
+globalDecl =
+    (Parser.succeed F80.AST.GlobalDeclData
         |. Parser.symbol "const"
         |. spacesOnly
         |= identifier
         |. spacesOnly
         |. Parser.symbol "="
         |. spacesOnly
-        |= expr
+        |= value
     )
-        |> Parser.map F80.AST.ConstDecl
+        |> Parser.map F80.AST.GlobalDecl
 
 
 fnDecl : Parser F80.AST.Decl
@@ -229,6 +229,80 @@ callStmt expr_ =
         |= argList
     )
         |> Parser.map F80.AST.CallStmt
+
+
+value : Parser Value
+value =
+    Pratt.expression
+        { oneOf =
+            [ parenthesizedValue
+            , Pratt.literal stringLengthValue
+            , Pratt.literal globalValue
+            , Pratt.literal intValue
+            , Pratt.literal stringValue
+            ]
+        , andThenOneOf =
+            [ Pratt.infixLeft 1 (Parser.symbol "+") (binOpValue BOp_Add)
+            , Pratt.infixLeft 1 (Parser.symbol "-") (binOpValue BOp_Sub)
+            , Pratt.infixLeft 1 (Parser.symbol "<") (binOpValue BOp_Lt)
+            , Pratt.infixLeft 1 (Parser.symbol ">") (binOpValue BOp_Gt)
+            ]
+        , spaces = spacesOnly
+        }
+
+
+parenthesizedValue : Pratt.Config Value -> Parser Value
+parenthesizedValue config =
+    Parser.succeed identity
+        |. Parser.symbol "("
+        |. spacesOnly
+        |= Pratt.subExpression 0 config
+        |. spacesOnly
+        |. Parser.symbol ")"
+
+
+globalValue : Parser Value
+globalValue =
+    Parser.succeed F80.AST.VGlobal
+        |= identifier
+
+
+intValue : Parser Value
+intValue =
+    Parser.succeed F80.AST.VInt
+        |= Parser.int
+
+
+stringValue : Parser Value
+stringValue =
+    Parser.succeed F80.AST.VString
+        |. Parser.symbol "\""
+        |= (Parser.chompWhile (\c -> c /= '"')
+                |> Parser.getChompedString
+           )
+        |. Parser.symbol "\""
+
+
+stringLengthValue : Parser Value
+stringLengthValue =
+    {- TODO add an optimization pass to calculate these in compile time and only
+       emit the final number
+    -}
+    Parser.succeed F80.AST.VStringLength
+        |. Parser.symbol "String.length("
+        |. spacesOnly
+        |= Parser.lazy (\() -> value)
+        |. spacesOnly
+        |. Parser.symbol ")"
+
+
+binOpValue : BinOp -> Value -> Value -> Value
+binOpValue op left right =
+    F80.AST.VBinOp
+        { op = op
+        , left = left
+        , right = right
+        }
 
 
 expr : Parser Expr

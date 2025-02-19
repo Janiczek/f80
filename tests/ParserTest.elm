@@ -9,6 +9,7 @@ import F80.AST
         , Expr(..)
         , KeyPattern(..)
         , Stmt(..)
+        , Value(..)
         )
 import F80.Parser
 import Fuzz exposing (Fuzzer)
@@ -81,25 +82,29 @@ bar(x) {
 declarationTests : Test
 declarationTests =
     Test.describe "Declarations"
-        [ constDeclTests
+        [ globalDeclTests
         , fnDeclTests
         ]
 
 
-constDeclTests : Test
-constDeclTests =
-    Test.describe "ConstDecl"
-        [ Test.test "parses const declarations" <|
+globalDeclTests : Test
+globalDeclTests =
+    Test.describe "GlobalDecl"
+        [ Test.test "parses globals" <|
             \_ ->
                 """
 const x = 42
 const y = "hello"
+const z = x + 1
+const w = String.length(y) - 2
 """
                     |> F80.Parser.parse
                     |> Expect.equal
                         (Ok
-                            [ ConstDecl { name = "x", expr = Int 42 }
-                            , ConstDecl { name = "y", expr = String "hello" }
+                            [ GlobalDecl { name = "x", value = VInt 42 }
+                            , GlobalDecl { name = "y", value = VString "hello" }
+                            , GlobalDecl { name = "z", value = VBinOp { op = BOp_Add, left = VGlobal "x", right = VInt 1 } }
+                            , GlobalDecl { name = "w", value = VBinOp { op = BOp_Sub, left = VStringLength (VGlobal "y"), right = VInt 2 } }
                             ]
                         )
         ]

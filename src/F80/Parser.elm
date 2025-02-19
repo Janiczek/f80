@@ -34,7 +34,7 @@ decl =
 
 globalDecl : Parser F80.AST.Decl
 globalDecl =
-    (Parser.succeed F80.AST.GlobalDeclData
+    Parser.succeed F80.AST.GlobalDeclData
         |. Parser.symbol "const"
         |. spacesOnly
         |= identifier
@@ -42,18 +42,16 @@ globalDecl =
         |. Parser.symbol "="
         |. spacesOnly
         |= value
-    )
         |> Parser.map F80.AST.GlobalDecl
 
 
 fnDecl : Parser F80.AST.Decl
 fnDecl =
-    (Parser.succeed F80.AST.FnDeclData
+    Parser.succeed F80.AST.FnDeclData
         |= identifier
         |= paramList
         |. spacesOnly
         |= block
-    )
         |> Parser.map F80.AST.FnDecl
 
 
@@ -111,10 +109,9 @@ stmt =
                     (\id ->
                         Parser.oneOf
                             [ assignStmt id -- foo += 1
-                            , callStmt (Var id) -- foo(123)
+                            , callStmt id -- foo(123)
                             ]
                     )
-            , expr |> Parser.andThen callStmt -- foo(bar)(baz)
             ]
 
 
@@ -159,7 +156,7 @@ loopStmt =
 
 ifStmt : Parser F80.AST.Stmt
 ifStmt =
-    (Parser.succeed F80.AST.IfStmtData
+    Parser.succeed F80.AST.IfStmtData
         |. Parser.symbol "if"
         |. spacesOnly
         |. Parser.symbol "("
@@ -176,13 +173,12 @@ ifStmt =
                 |. spacesOnly
                 |= Parser.lazy (\() -> block)
             )
-    )
         |> Parser.map F80.AST.If
 
 
 defineConstStmt : Parser F80.AST.Stmt
 defineConstStmt =
-    (Parser.succeed F80.AST.DefineConstData
+    Parser.succeed F80.AST.DefineConstData
         |. Parser.symbol "const"
         |. spacesOnly
         |= identifier
@@ -190,13 +186,12 @@ defineConstStmt =
         |. Parser.symbol "="
         |. spacesOnly
         |= expr
-    )
         |> Parser.map F80.AST.DefineConst
 
 
 defineLetStmt : Parser F80.AST.Stmt
 defineLetStmt =
-    (Parser.succeed F80.AST.DefineLetData
+    Parser.succeed F80.AST.DefineLetData
         |. Parser.symbol "let"
         |. spacesOnly
         |= identifier
@@ -204,13 +199,12 @@ defineLetStmt =
         |. Parser.symbol "="
         |. spacesOnly
         |= expr
-    )
         |> Parser.map F80.AST.DefineLet
 
 
 assignStmt : String -> Parser F80.AST.Stmt
 assignStmt id =
-    (Parser.succeed (F80.AST.AssignData id)
+    Parser.succeed (F80.AST.AssignData id)
         |. spacesOnly
         |= Parser.oneOf
             [ Parser.succeed Nothing |. Parser.symbol "="
@@ -219,15 +213,13 @@ assignStmt id =
             ]
         |. spacesOnly
         |= expr
-    )
         |> Parser.map F80.AST.Assign
 
 
-callStmt : Expr -> Parser F80.AST.Stmt
-callStmt expr_ =
-    (Parser.succeed (F80.AST.CallData expr_)
+callStmt : String -> Parser F80.AST.Stmt
+callStmt fnName =
+    Parser.succeed (F80.AST.CallData fnName)
         |= argList
-    )
         |> Parser.map F80.AST.CallStmt
 
 
@@ -240,6 +232,7 @@ value =
             , Pratt.literal globalValue
             , Pratt.literal intValue
             , Pratt.literal stringValue
+            , Pratt.literal bytesValue
             ]
         , andThenOneOf =
             [ Pratt.infixLeft 1 (Parser.symbol "+") (binOpValue BOp_Add)
@@ -283,11 +276,21 @@ stringValue =
         |. Parser.symbol "\""
 
 
+bytesValue : Parser Value
+bytesValue =
+    Parser.succeed F80.AST.VBytes
+        |= Parser.sequence
+            { start = "["
+            , separator = ","
+            , end = "]"
+            , spaces = spacesAndNewlines
+            , item = Parser.int
+            , trailing = Parser.Optional
+            }
+
+
 stringLengthValue : Parser Value
 stringLengthValue =
-    {- TODO add an optimization pass to calculate these in compile time and only
-       emit the final number
-    -}
     Parser.succeed F80.AST.VStringLength
         |. Parser.symbol "String.length("
         |. spacesOnly
@@ -311,7 +314,7 @@ expr =
         { oneOf =
             [ parenthesizedExpr
             , ifExpr
-            , Pratt.literal varExpr
+            , Pratt.literal varOrCallExpr
             , Pratt.literal intExpr
             , Pratt.literal stringExpr
             ]
@@ -320,7 +323,6 @@ expr =
             , Pratt.infixLeft 1 (Parser.symbol "-") (binOpExpr BOp_Sub)
             , Pratt.infixLeft 1 (Parser.symbol "<") (binOpExpr BOp_Lt)
             , Pratt.infixLeft 1 (Parser.symbol ">") (binOpExpr BOp_Gt)
-            , callExpr
             ]
         , spaces = spacesOnly
         }
@@ -336,10 +338,18 @@ parenthesizedExpr config =
         |. Parser.symbol ")"
 
 
-varExpr : Parser Expr
-varExpr =
-    Parser.succeed F80.AST.Var
-        |= identifier
+varOrCallExpr : Parser Expr
+varOrCallExpr =
+    identifier
+        |> Parser.andThen
+            (\id ->
+                Parser.oneOf
+                    [ Parser.succeed (F80.AST.CallData id)
+                        |= argList
+                        |> Parser.map F80.AST.CallExpr
+                    , Parser.succeed (F80.AST.Var id)
+                    ]
+            )
 
 
 intExpr : Parser Expr
@@ -356,21 +366,6 @@ stringExpr =
                 |> Parser.getChompedString
            )
         |. Parser.symbol "\""
-
-
-callExpr : Pratt.Config Expr -> ( Int, Expr -> Parser Expr )
-callExpr config =
-    ( 10
-    , \left ->
-        Parser.succeed
-            (\args ->
-                F80.AST.CallExpr
-                    { fn = left
-                    , args = args
-                    }
-            )
-            |= argList
-    )
 
 
 ifExpr : Pratt.Config Expr -> Parser Expr

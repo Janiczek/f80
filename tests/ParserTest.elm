@@ -54,7 +54,7 @@ bar(x) {
                                 , params = []
                                 , body =
                                     [ CallStmt
-                                        { fn = Var "foo"
+                                        { fn = "foo"
                                         , args = [ Int 42 ]
                                         }
                                     ]
@@ -64,7 +64,7 @@ bar(x) {
                                 , params = [ "x" ]
                                 , body =
                                     [ CallStmt
-                                        { fn = Var "foo"
+                                        { fn = "foo"
                                         , args = [ Var "x" ]
                                         }
                                     ]
@@ -90,23 +90,55 @@ declarationTests =
 globalDeclTests : Test
 globalDeclTests =
     Test.describe "GlobalDecl"
-        [ Test.test "parses globals" <|
-            \_ ->
-                """
-const x = 42
-const y = "hello"
-const z = x + 1
-const w = String.length(y) - 2
-"""
+        [ Test.test "parses integer global" <|
+            \() ->
+                "const x = 42"
+                    |> F80.Parser.parse
+                    |> Expect.equal (Ok [ GlobalDecl { name = "x", value = VInt 42 } ])
+        , Test.test "parses string global" <|
+            \() ->
+                "const y = \"hello\""
+                    |> F80.Parser.parse
+                    |> Expect.equal (Ok [ GlobalDecl { name = "y", value = VString "hello" } ])
+        , Test.test "parses binary operation global" <|
+            \() ->
+                "const z = x + 1"
                     |> F80.Parser.parse
                     |> Expect.equal
                         (Ok
-                            [ GlobalDecl { name = "x", value = VInt 42 }
-                            , GlobalDecl { name = "y", value = VString "hello" }
-                            , GlobalDecl { name = "z", value = VBinOp { op = BOp_Add, left = VGlobal "x", right = VInt 1 } }
-                            , GlobalDecl { name = "w", value = VBinOp { op = BOp_Sub, left = VStringLength (VGlobal "y"), right = VInt 2 } }
+                            [ GlobalDecl
+                                { name = "z"
+                                , value =
+                                    VBinOp
+                                        { op = BOp_Add
+                                        , left = VGlobal "x"
+                                        , right = VInt 1
+                                        }
+                                }
                             ]
                         )
+        , Test.test "parses string length operation global" <|
+            \() ->
+                "const w = String.length(y) - 2"
+                    |> F80.Parser.parse
+                    |> Expect.equal
+                        (Ok
+                            [ GlobalDecl
+                                { name = "w"
+                                , value =
+                                    VBinOp
+                                        { op = BOp_Sub
+                                        , left = VStringLength (VGlobal "y")
+                                        , right = VInt 2
+                                        }
+                                }
+                            ]
+                        )
+        , Test.test "parses bytes global" <|
+            \() ->
+                "const b = [1,2,3]"
+                    |> F80.Parser.parse
+                    |> Expect.equal (Ok [ GlobalDecl { name = "b", value = VBytes [ 1, 2, 3 ] } ])
         ]
 
 
@@ -128,7 +160,7 @@ main() {
                                 , params = []
                                 , body =
                                     [ CallStmt
-                                        { fn = Var "foo"
+                                        { fn = "foo"
                                         , args = [ Int 42, String "hello" ]
                                         }
                                     ]
@@ -150,7 +182,7 @@ foo(x, y) {
                                 , params = [ "x", "y" ]
                                 , body =
                                     [ CallStmt
-                                        { fn = Var "bar"
+                                        { fn = "bar"
                                         , args = [ Var "x", Var "y" ]
                                         }
                                     ]
@@ -306,7 +338,7 @@ main() {
                                 { name = "main"
                                 , params = []
                                 , body =
-                                    [ Loop [ CallStmt { fn = Var "bar", args = [] } ]
+                                    [ Loop [ CallStmt { fn = "bar", args = [] } ]
                                     ]
                                 }
                             ]
@@ -354,7 +386,7 @@ main() {
                                 , body =
                                     [ If
                                         { cond = BinOp { left = Var "x", op = BOp_Gt, right = Int 0 }
-                                        , then_ = [ CallStmt { fn = Var "foo", args = [] } ]
+                                        , then_ = [ CallStmt { fn = "foo", args = [] } ]
                                         , else_ = Nothing
                                         }
                                     ]
@@ -381,8 +413,8 @@ main() {
                                 , body =
                                     [ If
                                         { cond = BinOp { left = Var "x", op = BOp_Gt, right = Int 0 }
-                                        , then_ = [ CallStmt { fn = Var "foo", args = [] } ]
-                                        , else_ = Just [ CallStmt { fn = Var "bar", args = [] } ]
+                                        , then_ = [ CallStmt { fn = "foo", args = [] } ]
+                                        , else_ = Just [ CallStmt { fn = "bar", args = [] } ]
                                         }
                                     ]
                                 }
@@ -406,7 +438,7 @@ main() {
                                 , body =
                                     [ If
                                         { cond = Var "x"
-                                        , then_ = [ CallStmt { fn = Var "foo", args = [] } ]
+                                        , then_ = [ CallStmt { fn = "foo", args = [] } ]
                                         , else_ = Nothing
                                         }
                                     ]
@@ -532,7 +564,7 @@ main() {
                                     [ Assign
                                         { var = "x"
                                         , op = Just BOp_Add
-                                        , value = CallExpr { fn = Var "foo", args = [ Int 42 ] }
+                                        , value = CallExpr { fn = "foo", args = [ Int 42 ] }
                                         }
                                     ]
                                 }
@@ -559,7 +591,7 @@ main() {
                                 , params = []
                                 , body =
                                     [ CallStmt
-                                        { fn = Var "foo"
+                                        { fn = "foo"
                                         , args = [ Int 1, Int 2 ]
                                         }
                                     ]
@@ -584,7 +616,7 @@ main() {
                                 , params = []
                                 , body =
                                     [ CallStmt
-                                        { fn = Var "foo"
+                                        { fn = "foo"
                                         , args = [ Int 1, Int 2 ]
                                         }
                                     ]
@@ -606,7 +638,7 @@ main() {
                                 , params = []
                                 , body =
                                     [ CallStmt
-                                        { fn = Var "foo"
+                                        { fn = "foo"
                                         , args = []
                                         }
                                     ]
@@ -752,7 +784,7 @@ callExprTests =
                                         { name = "x"
                                         , value =
                                             CallExpr
-                                                { fn = Var "foo"
+                                                { fn = "foo"
                                                 , args = [ Int 1, Int 2 ]
                                                 }
                                         }
@@ -774,7 +806,7 @@ callExprTests =
                                         { name = "x"
                                         , value =
                                             CallExpr
-                                                { fn = Var "foo"
+                                                { fn = "foo"
                                                 , args = [ Int 1, Int 2 ]
                                                 }
                                         }
@@ -802,7 +834,7 @@ main() {
                                         { name = "x"
                                         , value =
                                             CallExpr
-                                                { fn = Var "foo"
+                                                { fn = "foo"
                                                 , args = [ Int 1, Int 2 ]
                                                 }
                                         }
@@ -824,7 +856,7 @@ main() {
                                         { name = "x"
                                         , value =
                                             CallExpr
-                                                { fn = Var "foo"
+                                                { fn = "foo"
                                                 , args = []
                                                 }
                                         }
@@ -971,8 +1003,8 @@ main() {
                                 { name = "main"
                                 , params = []
                                 , body =
-                                    [ CallStmt { fn = Var "foo", args = [] }
-                                    , CallStmt { fn = Var "bar", args = [] }
+                                    [ CallStmt { fn = "foo", args = [] }
+                                    , CallStmt { fn = "bar", args = [] }
                                     ]
                                 }
                             ]

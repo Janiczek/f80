@@ -1,5 +1,8 @@
 module F80.Emitter exposing (emit)
 
+{-| Prepares assembly for consumption by the PASMO Z80 assembler.
+-}
+
 import F80.AST
     exposing
         ( AssignData
@@ -15,144 +18,43 @@ import F80.AST
         , Stmt(..)
         , Value(..)
         )
+import F80.Emitter.Global
+import F80.Emitter.Util exposing (i, l)
 
 
 emit : Program -> List String
 emit program =
-    program
-        |> List.map emitDecl
-        |> List.concat
+    List.concatMap emitDecl program
 
 
 emitDecl : Decl -> List String
 emitDecl decl =
     case decl of
         GlobalDecl data ->
-            emitGlobalDecl data
+            F80.Emitter.Global.emitGlobalDecl data
 
         FnDecl data ->
             emitFnDecl data
 
 
-emitGlobalDecl : GlobalDeclData -> List String
-emitGlobalDecl globalData =
-    let
-        default () =
-            [ globalData.name ++ " db " ++ emitValue globalData.value ]
-    in
-    case globalData.value of
-        VInt _ ->
-            default ()
-
-        VBytes _ ->
-            default ()
-
-        VBinOp _ ->
-            default ()
-
-        VStringLength _ ->
-            default ()
-
-        VString s ->
-            -- Also make a label for the end of the string so that we can compute the length
-            -- TODO check for off-by-one
-            [ globalData.name ++ " db " ++ emitValue globalData.value
-            , globalStringLengthLabel globalData.name ++ " EQU " ++ String.fromInt (String.length s)
-            ]
-
-        VGlobal otherName ->
-            -- Use EQU so that we don't allocate the same data multiple times
-            [ globalData.name ++ " EQU " ++ otherName ]
-
-
-emitValue : Value -> String
-emitValue val =
-    case val of
-        VInt i ->
-            String.fromInt i
-
-        VString s ->
-            "'" ++ s ++ "', 0"
-
-        VBytes bytes ->
-            bytes
-                |> List.map String.fromInt
-                |> String.join ", "
-
-        VGlobal otherName ->
-            otherName
-
-        VBinOp binOpData ->
-            emitValue binOpData.left
-                ++ " "
-                ++ emitBinOp binOpData.op
-                ++ " "
-                ++ emitValue binOpData.right
-
-        VStringLength val_ ->
-            case val_ of
-                VString s ->
-                    emitValue (VInt (String.length s))
-
-                VGlobal otherName ->
-                    globalStringLengthLabel otherName
-
-                _ ->
-                    -- TODO exit with an error?
-                    "ERROR: String length used on a non-string/global value"
-
-
-globalStringLengthLabel : String -> String
-globalStringLengthLabel name =
-    name ++ "_length"
-
-
-emitBinOp : BinOp -> String
-emitBinOp op =
-    case op of
-        BOp_Add ->
-            "+"
-
-        BOp_Sub ->
-            "-"
-
-        BOp_Lt ->
-            "<"
-
-        BOp_Gt ->
-            ">"
-
-
-{-| Emit a function definition.
--}
 emitFnDecl : FnDeclData -> List String
 emitFnDecl fnData =
-    let
-        bodyLines : List String
-        bodyLines =
-            fnData.body
-                |> List.map emitStmt
-                |> List.concat
-    in
-    [ "; function " ++ fnData.name
-    , "_" ++ fnData.name ++ ":"
-    ]
-        ++ bodyLines
-        ++ [ "ret" ]
+    List.concat
+        [ [ l fnData.name ]
+        , emitBlock fnData.body
+        , [ i "ret" ]
+        ]
 
 
 emitStmt : Stmt -> List String
 emitStmt stmt =
     case stmt of
         WaitForKeyboard _ ->
-            [ "; WaitForKeyboard not implemented" ]
+            Debug.todo "emitStmt WaitForKeyboard"
 
         Loop subBlock ->
             [ "; begin loop" ]
-                ++ (subBlock
-                        |> List.map emitStmt
-                        |> List.concat
-                   )
+                ++ emitBlock subBlock
                 ++ [ "; end loop" ]
 
         If ifData ->
@@ -211,58 +113,31 @@ emitAssign assignData =
     ]
 
 
-{-| Emit a function call statement.
--}
 emitCall : CallData -> List String
 emitCall callData =
-    let
-        numArgs : Int
-        numArgs =
-            List.length callData.args
-    in
-    pushArgs callData.args
-        ++ callInstruction callData.fn
-        ++ cleanupStack numArgs
+    List.concat
+        [ pushArgs callData.args
+        , [ i <| "call " ++ callData.fn ]
+        ]
 
 
-{-| Push function arguments onto the stack from left to right.
--}
 pushArgs : List Expr -> List String
 pushArgs args =
-    args
-        |> List.map (\arg -> emitExprToHL arg ++ [ "push hl" ])
-        |> List.concat
-
-
-callInstruction : Expr -> List String
-callInstruction fnExpr =
-    case fnExpr of
-        Var fnName ->
-            [ "call _" ++ fnName ]
-
-        _ ->
-            [ "; function expression not supported in call" ]
-
-
-cleanupStack : Int -> List String
-cleanupStack numArgs =
-    if numArgs > 0 then
-        [ "add sp," ++ String.fromInt (numArgs * 2) ]
-
-    else
-        []
+    List.concatMap
+        (\arg -> emitExprToHL arg ++ [ i "push hl" ])
+        args
 
 
 emitExprToHL : Expr -> List String
 emitExprToHL expr =
     case expr of
-        Int i ->
-            [ "ld hl," ++ String.fromInt i ]
+        Int n ->
+            [ i <| "ld hl," ++ String.fromInt n ]
 
         Var name ->
-            [ "; load a global variable (address in RAM) into HL"
-            , "ld hl,(" ++ name ++ ")"
+            -- TODO this will only work for globals, but not for locals
+            [ i <| "ld hl,(" ++ name ++ ")"
             ]
 
         _ ->
-            [ "; TODO: handle " ++ Debug.toString expr ]
+            Debug.todo <| "emit expr to HL: " ++ Debug.toString expr

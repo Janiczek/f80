@@ -101,12 +101,12 @@ ast =
                 , value = Int 0
                 }
             , CallStmt
-                { fn = Var "renderText"
+                { fn = "renderText"
                 , args = []
                 }
             , Loop
                 [ CallStmt
-                    { fn = Var "renderCounter"
+                    { fn = "renderCounter"
                     , args =
                         [ Var "counter"
                         , Var "previousCounter"
@@ -156,7 +156,7 @@ ast =
         , params = []
         , body =
             [ CallStmt
-                { fn = Var "Render.text"
+                { fn = "Render.text"
                 , args =
                     [ Var "textX"
                     , Var "counterY"
@@ -164,7 +164,7 @@ ast =
                     ]
                 }
             , CallStmt
-                { fn = Var "Render.text"
+                { fn = "Render.text"
                 , args =
                     [ Var "textX"
                     , Var "helpY"
@@ -184,19 +184,19 @@ ast =
                 { name = "counterStr"
                 , value =
                     CallExpr
-                        { fn = Var "String.fromI16"
+                        { fn = "String.fromI16"
                         , args = [ Var "counter" ]
                         }
                 }
             , CallStmt
-                { fn = Var "cleanupCounter"
+                { fn = "cleanupCounter"
                 , args =
                     [ Var "counterStr"
                     , Var "previous"
                     ]
                 }
             , CallStmt
-                { fn = Var "Render.text"
+                { fn = "Render.text"
                 , args =
                     [ Var "counterX"
                     , Var "counterY"
@@ -216,10 +216,10 @@ ast =
                 { name = "lenPrevious"
                 , value =
                     CallExpr
-                        { fn = Var "String.length"
+                        { fn = "String.length"
                         , args =
                             [ CallExpr
-                                { fn = Var "String.fromI16"
+                                { fn = "String.fromI16"
                                 , args = [ Var "previous" ]
                                 }
                             ]
@@ -229,7 +229,7 @@ ast =
                 { name = "lenCounter"
                 , value =
                     CallExpr
-                        { fn = Var "String.length"
+                        { fn = "String.length"
                         , args = [ Var "counterStr" ]
                         }
                 }
@@ -242,7 +242,7 @@ ast =
                         }
                 , then_ =
                     [ CallStmt
-                        { fn = Var "Render.text"
+                        { fn = "Render.text"
                         , args =
                             [ BinOp
                                 { op = BOp_Add

@@ -112,7 +112,7 @@ type alias IfStmtData =
 
 
 type alias CallData =
-    { fn : Expr
+    { fn : String
     , args : List Expr
     }
 

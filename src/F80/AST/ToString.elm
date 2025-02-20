@@ -146,6 +146,14 @@ stmtToString stmt =
                 ++ String.join ", " (List.map exprToString data.args)
                 ++ ")"
 
+        Return maybeExpr ->
+            case maybeExpr of
+                Nothing ->
+                    "return"
+
+                Just expr ->
+                    "return " ++ exprToString expr
+
 
 waitForKeypressItemToString : WaitForKeypressItem -> String
 waitForKeypressItemToString item =

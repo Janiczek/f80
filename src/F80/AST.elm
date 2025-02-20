@@ -87,6 +87,7 @@ type Stmt
     | DefineLet DefineLetData
     | Assign AssignData
     | CallStmt CallData
+    | Return (Maybe Expr)
 
 
 type alias AssignData =
@@ -271,6 +272,18 @@ walkStmt fExpr fStmt acc stmt =
                         data.args
             in
             ( newAcc1, CallStmt { data | args = newArgs } )
+
+        Return maybeExpr ->
+            case maybeExpr of
+                Nothing ->
+                    ( newAcc, Return Nothing )
+
+                Just expr ->
+                    let
+                        ( newAcc1, newExpr ) =
+                            walkExpr fExpr newAcc expr
+                    in
+                    ( newAcc1, Return (Just newExpr) )
 
 
 walkBlock :

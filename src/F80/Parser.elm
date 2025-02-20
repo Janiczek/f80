@@ -100,6 +100,7 @@ stmt =
         |. spacesOnly
         |= Parser.oneOf
             [ waitForKeypressStmt
+            , returnStmt
             , loopStmt
             , ifStmt
             , defineConstStmt
@@ -144,6 +145,18 @@ keyPattern =
         [ Parser.succeed F80.AST.KeyPattern_J |. Parser.symbol "Key.J"
         , Parser.succeed F80.AST.KeyPattern_K |. Parser.symbol "Key.K"
         ]
+
+
+returnStmt : Parser F80.AST.Stmt
+returnStmt =
+    Parser.succeed F80.AST.Return
+        |. Parser.symbol "return"
+        |= Parser.oneOf
+            [ Parser.succeed Just
+                |. spacesOnly
+                |= Parser.lazy (\() -> expr)
+            , Parser.succeed Nothing
+            ]
 
 
 loopStmt : Parser F80.AST.Stmt

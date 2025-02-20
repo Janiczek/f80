@@ -117,6 +117,14 @@ emitStmt parentCtx ix stmt =
         CallStmt callData ->
             emitCall callData
 
+        Return maybeExpr ->
+            emitReturn maybeExpr
+
+
+emitReturn : Maybe Expr -> Output
+emitReturn maybeExpr =
+    Debug.todo "emitReturn"
+
 
 emitIf : IfStmtData -> Output
 emitIf ifData =

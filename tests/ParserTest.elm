@@ -203,6 +203,7 @@ statementTests =
         , assignTests
         , callStmtTests
         , callRenderTextStmtTests
+        , returnTests
         ]
 
 
@@ -600,6 +601,46 @@ main() {
                                             ]
                                         }
                                     ]
+                                }
+                            ]
+                        )
+        ]
+
+
+returnTests : Test
+returnTests =
+    Test.describe "Return"
+        [ Test.test "empty return" <|
+            \_ ->
+                """
+main() {
+    return
+}
+                """
+                    |> F80.Parser.parse
+                    |> Expect.equal
+                        (Ok
+                            [ FnDecl
+                                { name = "main"
+                                , params = []
+                                , body = [ Return Nothing ]
+                                }
+                            ]
+                        )
+        , Test.test "return with expr" <|
+            \_ ->
+                """
+main() {
+    return 42
+}
+                """
+                    |> F80.Parser.parse
+                    |> Expect.equal
+                        (Ok
+                            [ FnDecl
+                                { name = "main"
+                                , params = []
+                                , body = [ Return (Just (Int 42)) ]
                                 }
                             ]
                         )

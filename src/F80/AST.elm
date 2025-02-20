@@ -3,13 +3,14 @@ module F80.AST exposing
     , Decl(..)
     , GlobalDeclData, FnDeclData
     , Param
-    , Block
-    , Stmt(..), WaitForKeyboardItem, CallData, IfStmtData, AssignData
+    , Block, walkBlock
+    , Stmt(..), walkStmt
+    , WaitForKeyboardItem, CallData, IfStmtData, AssignData
     , DefineConstData, DefineLetData
-    , Expr(..), BinOp(..), IfExprData, BinOpData
+    , Expr(..), walkExpr
+    , BinOp(..), IfExprData, BinOpData
     , Value(..)
     , KeyPattern(..)
-    , CallRenderTextStmtData
     )
 
 {-|
@@ -20,13 +21,14 @@ module F80.AST exposing
 @docs GlobalDeclData, FnDeclData
 
 @docs Param
-@docs Block
-@docs Stmt, WaitForKeyboardItem, CallData, IfStmtData, AssignData
+@docs Block, walkBlock
+@docs Stmt, walkStmt
+@docs WaitForKeyboardItem, CallData, IfStmtData, AssignData
 @docs DefineConstData, DefineLetData
-@docs Expr, BinOp, IfExprData, BinOpData
+@docs Expr, walkExpr
+@docs BinOp, IfExprData, BinOpData
 @docs Value
 @docs KeyPattern
-@docs CallRenderTextStmtData
 
 -}
 
@@ -85,14 +87,6 @@ type Stmt
     | DefineLet DefineLetData
     | Assign AssignData
     | CallStmt CallData
-    | CallRenderTextStmt CallRenderTextStmtData
-
-
-type alias CallRenderTextStmtData =
-    { string : Expr
-    , x : Expr
-    , y : Expr
-    }
 
 
 type alias AssignData =
@@ -166,3 +160,175 @@ type BinOp
 type KeyPattern
     = KeyPattern_Plus
     | KeyPattern_Minus
+
+
+walkStmt :
+    (acc -> Expr -> ( acc, Expr ))
+    -> (acc -> Stmt -> ( acc, Stmt ))
+    -> acc
+    -> Stmt
+    -> ( acc, Stmt )
+walkStmt fExpr fStmt acc stmt =
+    let
+        ( newAcc, newStmt ) =
+            fStmt acc stmt
+    in
+    case newStmt of
+        WaitForKeyboard items ->
+            ( newAcc, WaitForKeyboard items )
+
+        Loop block ->
+            let
+                ( newAcc1, newBlock ) =
+                    walkBlock fExpr fStmt newAcc block
+            in
+            ( newAcc1, Loop newBlock )
+
+        If data ->
+            let
+                ( newAcc1, newCond ) =
+                    walkExpr fExpr newAcc data.cond
+
+                ( newAcc2, newThen ) =
+                    walkBlock fExpr fStmt newAcc1 data.then_
+
+                ( newAcc3, newElse ) =
+                    case data.else_ of
+                        Nothing ->
+                            ( newAcc2, Nothing )
+
+                        Just else_ ->
+                            walkBlock fExpr fStmt newAcc2 else_
+                                |> Tuple.mapSecond Just
+            in
+            ( newAcc3
+            , If
+                { data
+                    | cond = newCond
+                    , then_ = newThen
+                    , else_ = newElse
+                }
+            )
+
+        DefineConst data ->
+            let
+                ( newAcc1, newExpr ) =
+                    walkExpr fExpr newAcc data.value
+            in
+            ( newAcc1, DefineConst { data | value = newExpr } )
+
+        DefineLet data ->
+            let
+                ( newAcc1, newExpr ) =
+                    walkExpr fExpr newAcc data.value
+            in
+            ( newAcc1, DefineLet { data | value = newExpr } )
+
+        Assign assignData ->
+            let
+                ( newAcc1, newExpr ) =
+                    walkExpr fExpr newAcc assignData.value
+            in
+            ( newAcc1, Assign { assignData | value = newExpr } )
+
+        CallStmt data ->
+            let
+                ( newAcc1, newArgs ) =
+                    List.foldl
+                        (\arg ( accArg, args ) ->
+                            let
+                                ( newAccArg, newArg ) =
+                                    walkExpr fExpr accArg arg
+                            in
+                            ( newAccArg, args ++ [ newArg ] )
+                        )
+                        ( newAcc, [] )
+                        data.args
+            in
+            ( newAcc1, CallStmt { data | args = newArgs } )
+
+
+walkBlock :
+    (acc -> Expr -> ( acc, Expr ))
+    -> (acc -> Stmt -> ( acc, Stmt ))
+    -> acc
+    -> List Stmt
+    -> ( acc, List Stmt )
+walkBlock fExpr fStmt acc stmts =
+    List.foldl
+        (\stmt ( acc1, stmts1 ) ->
+            let
+                ( acc2, stmt1 ) =
+                    walkStmt fExpr fStmt acc1 stmt
+            in
+            ( acc2, stmt1 :: stmts1 )
+        )
+        ( acc, [] )
+        stmts
+        |> Tuple.mapSecond List.reverse
+
+
+walkExpr :
+    (acc -> Expr -> ( acc, Expr ))
+    -> acc
+    -> Expr
+    -> ( acc, Expr )
+walkExpr f acc expr =
+    let
+        ( newAcc, newExpr ) =
+            f acc expr
+    in
+    case newExpr of
+        BinOp data ->
+            let
+                ( accLeft, newLeft ) =
+                    walkExpr f newAcc data.left
+
+                ( accRight, newRight ) =
+                    walkExpr f accLeft data.right
+            in
+            ( accRight
+            , BinOp { data | left = newLeft, right = newRight }
+            )
+
+        IfExpr data ->
+            let
+                ( accCond, newCond ) =
+                    walkExpr f newAcc data.cond
+
+                ( accThen, newThen ) =
+                    walkExpr f accCond data.then_
+
+                ( accElse, newElse ) =
+                    walkExpr f accThen data.else_
+            in
+            ( accElse
+            , IfExpr { data | cond = newCond, then_ = newThen, else_ = newElse }
+            )
+
+        CallExpr data ->
+            let
+                ( finalAcc, newArgs ) =
+                    List.foldl
+                        (\arg ( accArg, args ) ->
+                            let
+                                ( newAccArg, newArg ) =
+                                    walkExpr f accArg arg
+                            in
+                            ( newAccArg, args ++ [ newArg ] )
+                        )
+                        ( newAcc, [] )
+                        data.args
+            in
+            ( finalAcc
+            , CallExpr { data | args = newArgs }
+            )
+
+        Var _ ->
+            ( newAcc, newExpr )
+
+        Int _ ->
+            ( newAcc, newExpr )
+
+        String _ ->
+            ( newAcc, newExpr )

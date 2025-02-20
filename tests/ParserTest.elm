@@ -591,10 +591,13 @@ main() {
                                 { name = "main"
                                 , params = []
                                 , body =
-                                    [ CallRenderTextStmt
-                                        { string = Var "hello"
-                                        , x = Int 3
-                                        , y = Int 5
+                                    [ CallStmt
+                                        { fn = "Render.text"
+                                        , args =
+                                            [ Int 3
+                                            , Int 5
+                                            , Var "hello"
+                                            ]
                                         }
                                     ]
                                 }

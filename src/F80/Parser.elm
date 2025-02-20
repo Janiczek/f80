@@ -218,33 +218,9 @@ assignStmt id =
 
 callStmt : String -> Parser F80.AST.Stmt
 callStmt fnName =
-    case fnName of
-        "Render.text" ->
-            Parser.succeed F80.AST.CallRenderTextStmt
-                |= (argList
-                        |> Parser.andThen
-                            (\args ->
-                                case args of
-                                    [ x, y, str ] ->
-                                        Parser.succeed
-                                            { x = x
-                                            , y = y
-                                            , string = str
-                                            }
-
-                                    _ ->
-                                        let
-                                            _ =
-                                                Debug.log "Invalid Render.text args" args
-                                        in
-                                        Parser.problem "Invalid arguments for Render.text"
-                            )
-                   )
-
-        _ ->
-            Parser.succeed (F80.AST.CallData fnName)
-                |= argList
-                |> Parser.map F80.AST.CallStmt
+    Parser.succeed (F80.AST.CallData fnName)
+        |= argList
+        |> Parser.map F80.AST.CallStmt
 
 
 value : Parser Value

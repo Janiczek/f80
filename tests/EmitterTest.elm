@@ -13,15 +13,12 @@ import F80.AST
         )
 import F80.Emitter
 import F80.Emitter.Util
+import F80.Lower.HoistStringLiterals
 import F80.Parser
 import Fuzz exposing (Fuzzer)
 import Test exposing (Test)
 
 
-{-| Converts the given source code to a list of Decl, emits it, and compares it
-to the expected single string. It splits the expected string by newlines
-for comparison against the list of lines from F80.Emitter.emit.
--}
 testEmit : String -> String -> Test
 testEmit source expected =
     Test.test ("Emitting: " ++ source) <|
@@ -29,6 +26,7 @@ testEmit source expected =
             case F80.Parser.parse source of
                 Ok decls ->
                     decls
+                        |> F80.Lower.HoistStringLiterals.hoist
                         |> F80.Emitter.emit
                         |> Expect.equalLists
                             (expected
@@ -165,11 +163,11 @@ main() {
             """
             """
 AT EQU 0x16
-_string_0_length EQU 5
+_string_0_0_length EQU 5
 org 0x8000
 main:
     ld hl,0x0305
-    ld de,_string_0
+    ld de,_string_0_0
     call renderString
 end:
     jp end
@@ -187,7 +185,7 @@ renderStringLoop:
     rst 0x10
     inc de
     jr renderStringLoop
-_string_0 db 'Hello', 0
+_string_0_0 db 'Hello', 0
             """
         ]
 

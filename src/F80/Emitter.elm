@@ -10,7 +10,6 @@ import F80.AST
         , BinOp(..)
         , Block
         , CallData
-        , CallRenderTextStmtData
         , Decl(..)
         , Expr(..)
         , FnDeclData
@@ -116,9 +115,6 @@ emitStmt parentCtx ix stmt =
         CallStmt callData ->
             emitCall callData
 
-        CallRenderTextStmt callData ->
-            emitCallRenderText callData
-
 
 emitIf : IfStmtData -> Output
 emitIf ifData =
@@ -139,37 +135,47 @@ emitAssign assignData =
 
 emitCall : CallData -> Output
 emitCall callData =
-    Output.code
-        (List.concat
-            [ pushArgs callData.args
-            , [ i <| "call " ++ callData.fn ]
-            ]
-        )
+    case callData.fn of
+        "Render.text" ->
+            emitCallRenderText callData
+
+        _ ->
+            Output.code
+                (List.concat
+                    [ pushArgs callData.args
+                    , [ i <| "call " ++ callData.fn ]
+                    ]
+                )
 
 
-emitCallRenderText : CallRenderTextStmtData -> Output
+emitCallRenderText : CallData -> Output
 emitCallRenderText callData =
-    Output.code
-        (List.concat
-            [ renderTextXYHL callData.x callData.y
-            , [ case callData.string of
-                    Var name ->
-                        i <| "ld de," ++ name
+    case callData.args of
+        [ x, y, string ] ->
+            Output.code
+                (List.concat
+                    [ renderTextXYHL x y
+                    , [ case string of
+                            Var name ->
+                                i <| "ld de," ++ name
 
-                    String str ->
-                        Debug.todo "Render.text - this should have been caught - we should have hoisted the string literal to a global constant and changed this call to use the var"
+                            String str ->
+                                Debug.todo "Render.text - this should have been caught - we should have hoisted the string literal to a global constant and changed this call to use the var"
 
-                    _ ->
-                        let
-                            _ =
-                                Debug.log "Unexpected Render.text string argument" callData.string
-                        in
-                        Debug.todo "Unexpected Render.text string argument - this should have been typechecked before emitting"
-              , i <| "call renderString"
-              ]
-            ]
-        )
-        |> Output.add Output.renderText
+                            _ ->
+                                let
+                                    _ =
+                                        Debug.log "Unexpected Render.text string argument" string
+                                in
+                                Debug.todo "Unexpected Render.text string argument - this should have been typechecked before emitting"
+                      , i <| "call renderString"
+                      ]
+                    ]
+                )
+                |> Output.add Output.renderText
+
+        _ ->
+            Debug.todo "emitCallRenderText - unexpected number of arguments"
 
 
 renderTextXYHL : Expr -> Expr -> List String

@@ -18,7 +18,7 @@ import F80.AST
         , Program
         , Stmt(..)
         , Value(..)
-        , WaitForKeyboardItem
+        , WaitForKeypressItem
         )
 import F80.Emitter.Global
 import F80.Emitter.Output as Output exposing (Output)
@@ -89,8 +89,8 @@ emitStmt parentCtx ix stmt =
             String.fromInt ix :: parentCtx
     in
     case stmt of
-        WaitForKeyboard data ->
-            emitWaitForKeyboard data
+        WaitForKeypress data ->
+            emitWaitForKeypress data
 
         Loop block ->
             let
@@ -117,9 +117,27 @@ emitStmt parentCtx ix stmt =
             emitCall callData
 
 
-emitWaitForKeyboard : List WaitForKeyboardItem -> Output
-emitWaitForKeyboard cases =
-    Debug.todo "emitWaitForKeyboard"
+emitWaitForKeypress : List WaitForKeypressItem -> Output
+emitWaitForKeypress cases =
+    case cases of
+        [] ->
+            Debug.todo "Define what should happen when the wait has no patterns. 'Press any key'?"
+
+        [ case_ ] ->
+            emitWaitForKeypressSingle case_
+
+        _ ->
+            emitWaitForKeypressMultiple cases
+
+
+emitWaitForKeypressSingle : WaitForKeypressItem -> Output
+emitWaitForKeypressSingle case_ =
+    Debug.todo "emitWaitForKeypressSingle"
+
+
+emitWaitForKeypressMultiple : List WaitForKeypressItem -> Output
+emitWaitForKeypressMultiple cases =
+    Debug.todo "emitWaitForKeypressMultiple"
 
 
 emitIf : IfStmtData -> Output

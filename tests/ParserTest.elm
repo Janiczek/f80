@@ -195,7 +195,7 @@ foo(x, y) {
 statementTests : Test
 statementTests =
     Test.describe "Statements"
-        [ waitForKeyboardTests
+        [ waitForKeypressTests
         , loopTests
         , ifStmtTests
         , defineConstTests
@@ -206,14 +206,14 @@ statementTests =
         ]
 
 
-waitForKeyboardTests : Test
-waitForKeyboardTests =
-    Test.describe "WaitForKeyboard"
-        [ Test.test "parses wait for keyboard" <|
+waitForKeypressTests : Test
+waitForKeypressTests =
+    Test.describe "WaitForKeypress"
+        [ Test.test "parses wait for keypress" <|
             \_ ->
                 """
 main() {
-    wait for keyboard {
+    wait for keypress {
         Key.J -> { x += 1 }
         Key.K -> { x -= 1 }
     }
@@ -226,7 +226,7 @@ main() {
                                 { name = "main"
                                 , params = []
                                 , body =
-                                    [ WaitForKeyboard
+                                    [ WaitForKeypress
                                         [ { on = KeyPattern_J
                                           , body = [ Assign { var = "x", op = Just BOp_Add, value = Int 1 } ]
                                           }
@@ -238,11 +238,11 @@ main() {
                                 }
                             ]
                         )
-        , Test.test "parses empty wait for keyboard with newline" <|
+        , Test.test "parses empty wait for keypress with newline" <|
             \_ ->
                 """
 main() {
-    wait for keyboard {
+    wait for keypress {
     }
 }
 """
@@ -253,15 +253,15 @@ main() {
                                 { name = "main"
                                 , params = []
                                 , body =
-                                    [ WaitForKeyboard [] ]
+                                    [ WaitForKeypress [] ]
                                 }
                             ]
                         )
-        , Test.test "parses empty wait for keyboard without newline" <|
+        , Test.test "parses empty wait for keypress without newline" <|
             \_ ->
                 """
 main() {
-    wait for keyboard {}
+    wait for keypress {}
 }
 """
                     |> F80.Parser.parse
@@ -271,15 +271,15 @@ main() {
                                 { name = "main"
                                 , params = []
                                 , body =
-                                    [ WaitForKeyboard [] ]
+                                    [ WaitForKeypress [] ]
                                 }
                             ]
                         )
-        , Test.test "parses wait for keyboard with if stmt in its handler" <|
+        , Test.test "parses wait for keypress with if stmt in its handler" <|
             \_ ->
                 """
 main() {
-    wait for keyboard {
+    wait for keypress {
       Key.J -> { if (counter > 0) { counter -= 1 } }
     }
 }
@@ -291,7 +291,7 @@ main() {
                                 { name = "main"
                                 , params = []
                                 , body =
-                                    [ WaitForKeyboard
+                                    [ WaitForKeypress
                                         [ { on = KeyPattern_J
                                           , body =
                                                 [ If

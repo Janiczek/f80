@@ -234,7 +234,7 @@ main() {
         , testLower
             """
 main() {
-    wait for keyboard {
+    wait for keypress {
       Key.J -> {
           x = "hello"
       }
@@ -248,7 +248,7 @@ main() {
 const _string_0_0 = "hello"
 const _string_0_1 = "world"
 main() {
-    wait for keyboard {
+    wait for keypress {
         Key.J -> {
             x = _string_0_0
         }

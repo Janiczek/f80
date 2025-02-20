@@ -99,7 +99,7 @@ stmt =
     Parser.succeed identity
         |. spacesOnly
         |= Parser.oneOf
-            [ waitForKeyboardStmt
+            [ waitForKeypressStmt
             , loopStmt
             , ifStmt
             , defineConstStmt
@@ -115,21 +115,21 @@ stmt =
             ]
 
 
-waitForKeyboardStmt : Parser F80.AST.Stmt
-waitForKeyboardStmt =
-    Parser.succeed F80.AST.WaitForKeyboard
-        |. Parser.symbol "wait for keyboard"
+waitForKeypressStmt : Parser F80.AST.Stmt
+waitForKeypressStmt =
+    Parser.succeed F80.AST.WaitForKeypress
+        |. Parser.symbol "wait for keypress"
         |. spacesAndNewlines
         |. Parser.symbol "{"
         |. spacesAndNewlines
-        |= wsList spacesAndNewlines waitForKeyboardItem
+        |= wsList spacesAndNewlines waitForKeypressItem
         |. spacesAndNewlines
         |. Parser.symbol "}"
 
 
-waitForKeyboardItem : Parser F80.AST.WaitForKeyboardItem
-waitForKeyboardItem =
-    Parser.succeed F80.AST.WaitForKeyboardItem
+waitForKeypressItem : Parser F80.AST.WaitForKeypressItem
+waitForKeypressItem =
+    Parser.succeed F80.AST.WaitForKeypressItem
         |. spacesOnly
         |= keyPattern
         |. spacesOnly

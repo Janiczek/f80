@@ -10,7 +10,7 @@ import F80.AST
         , Program
         , Stmt(..)
         , Value(..)
-        , WaitForKeyboardItem
+        , WaitForKeypressItem
         )
 
 
@@ -91,10 +91,10 @@ binOpToString op =
 stmtToString : Stmt -> String
 stmtToString stmt =
     case stmt of
-        WaitForKeyboard items ->
-            "wait for keyboard {\n"
+        WaitForKeypress items ->
+            "wait for keypress {\n"
                 ++ (items
-                        |> List.map (waitForKeyboardItemToString >> indent)
+                        |> List.map (waitForKeypressItemToString >> indent)
                         |> String.join "\n"
                    )
                 ++ "\n}"
@@ -147,8 +147,8 @@ stmtToString stmt =
                 ++ ")"
 
 
-waitForKeyboardItemToString : WaitForKeyboardItem -> String
-waitForKeyboardItemToString item =
+waitForKeypressItemToString : WaitForKeypressItem -> String
+waitForKeypressItemToString item =
     keyPatternToString item.on ++ " -> " ++ blockToString item.body
 
 

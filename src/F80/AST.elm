@@ -5,7 +5,7 @@ module F80.AST exposing
     , Param
     , Block, walkBlock
     , Stmt(..), walkStmt
-    , WaitForKeyboardItem, CallData, IfStmtData, AssignData
+    , WaitForKeypressItem, CallData, IfStmtData, AssignData
     , DefineConstData, DefineLetData
     , Expr(..), walkExpr
     , BinOp(..), IfExprData, BinOpData
@@ -23,7 +23,7 @@ module F80.AST exposing
 @docs Param
 @docs Block, walkBlock
 @docs Stmt, walkStmt
-@docs WaitForKeyboardItem, CallData, IfStmtData, AssignData
+@docs WaitForKeypressItem, CallData, IfStmtData, AssignData
 @docs DefineConstData, DefineLetData
 @docs Expr, walkExpr
 @docs BinOp, IfExprData, BinOpData
@@ -80,7 +80,7 @@ type alias Block =
 
 
 type Stmt
-    = WaitForKeyboard (List WaitForKeyboardItem)
+    = WaitForKeypress (List WaitForKeypressItem)
     | Loop Block
     | If IfStmtData
     | DefineConst DefineConstData
@@ -121,7 +121,7 @@ type alias CallData =
     }
 
 
-type alias WaitForKeyboardItem =
+type alias WaitForKeypressItem =
     { on : KeyPattern
     , body : Block
     }
@@ -174,7 +174,7 @@ walkStmt fExpr fStmt acc stmt =
             fStmt acc stmt
     in
     case newStmt of
-        WaitForKeyboard items ->
+        WaitForKeypress items ->
             let
                 ( finalAcc, newItems ) =
                     List.foldl
@@ -190,7 +190,7 @@ walkStmt fExpr fStmt acc stmt =
                         ( newAcc, [] )
                         items
             in
-            ( finalAcc, WaitForKeyboard newItems )
+            ( finalAcc, WaitForKeypress newItems )
 
         Loop block ->
             let

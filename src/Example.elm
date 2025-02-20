@@ -20,7 +20,7 @@ main() {
   renderStaticText()
   loop {
     renderCounter(counter)
-    wait for keyboard {
+    wait for keypress {
       Key.J -> { counter -= 1 }
       Key.K -> { counter += 1 }
     }
@@ -63,7 +63,7 @@ ast =
                     { fn = "renderCounter"
                     , args = [ Var "counter" ]
                     }
-                , WaitForKeyboard
+                , WaitForKeypress
                     [ { on = KeyPattern_J
                       , body =
                             [ Assign

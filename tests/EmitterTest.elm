@@ -45,6 +45,7 @@ suite =
         , renderText
         , romCls
         , loops
+        , waitForKeypress
         ]
 
 
@@ -329,5 +330,110 @@ _renderStringLoop:
     inc de
     jr _renderStringLoop
 hello db 'Hello', 0
+            """
+        ]
+
+
+waitForKeypress : Test
+waitForKeypress =
+    Test.describe "waitForKeypress"
+        [ testEmit
+            """
+main() {
+    wait for keypress {
+        Key.J -> {}
+    }
+}
+            """
+            """
+org 0x8000
+main:
+    jp _wait_0_start
+_wait_0_end:
+end:
+    jp end
+_wait_0_start:
+_wait_0_JNotPressed:
+    ld a,0xbf
+    in a,(0xfe)
+    bit 3,a
+    jp z,_wait_0_JNotPressed
+_wait_0_JPressed:
+    ld a,0xbf
+    in a,(0xfe)
+    bit 3,a
+    jp z,_wait_0_onJ
+    jp _wait_0_JPressed
+_wait_0_onJ:
+    jp _wait_0_end
+            """
+        , testEmit
+            """
+main() {
+    wait for keypress {
+        Key.J -> { ROM.cls() }
+    }
+}
+            """
+            """
+ROM_CLS EQU 0x0daf
+org 0x8000
+main:
+    jp _wait_0_start
+_wait_0_end:
+end:
+    jp end
+_wait_0_start:
+_wait_0_JNotPressed:
+    ld a,0xbf
+    in a,(0xfe)
+    bit 3,a
+    jp z,_wait_0_JNotPressed
+_wait_0_JPressed:
+    ld a,0xbf
+    in a,(0xfe)
+    bit 3,a
+    jp z,_wait_0_onJ
+    jp _wait_0_JPressed
+_wait_0_onJ:
+    call ROM_CLS
+    jp _wait_0_end
+            """
+        , testEmit
+            """
+main() {
+    wait for keypress {
+        Key.J -> {}
+        Key.K -> {}
+    }
+}
+            """
+            """
+org 0x8000
+main:
+    jp _wait_0_start
+_wait_0_end:
+end:
+    jp end
+_wait_0_start:
+_wait_0_JKNotPressed:
+    ld a,0xbf
+    in a,(0xfe)
+    bit 3,a
+    jp z,_wait_0_JKNotPressed
+    bit 2,a
+    jp z,_wait_0_JKNotPressed
+_wait_0_JKPressed:
+    ld a,0xbf
+    in a,(0xfe)
+    bit 3,a
+    jp z,_wait_0_onJ
+    bit 2,a
+    jp z,_wait_0_onK
+    jp _wait_0_JKPressed
+_wait_0_onJ:
+    jp _wait_0_end
+_wait_0_onK:
+    jp _wait_0_end
             """
         ]

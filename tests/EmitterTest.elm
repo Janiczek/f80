@@ -301,6 +301,14 @@ _if_0_end:
 _end:
     jp _end
             """
+        , Test.todo
+            """
+main() {
+    if (1 < 2) {
+        ROM.clearScreen()
+    }
+}
+            """
         ]
 
 

@@ -1,16 +1,15 @@
 module F80.Emitter.Output exposing
     ( Output
     , empty, smush, add, toString
-    , db, code, equ
+    , db, other, code, equ
     , renderText, romCls
-    , other
     )
 
 {-|
 
 @docs Output
 @docs empty, smush, add, toString
-@docs db, fn, code, equ
+@docs db, other, code, equ
 
 Standard library
 

@@ -10,7 +10,7 @@ module F80.AST exposing
     , Expr(..), walkExpr
     , BinOp(..), IfExprData, BinOpData
     , Value(..)
-    , KeyPattern(..)
+    , KeyPattern(..), keyPatternName
     )
 
 {-|
@@ -28,7 +28,7 @@ module F80.AST exposing
 @docs Expr, walkExpr
 @docs BinOp, IfExprData, BinOpData
 @docs Value
-@docs KeyPattern
+@docs KeyPattern, keyPatternName
 
 -}
 
@@ -160,6 +160,16 @@ type BinOp
 type KeyPattern
     = KeyPattern_J
     | KeyPattern_K
+
+
+keyPatternName : KeyPattern -> String
+keyPatternName keyPattern =
+    case keyPattern of
+        KeyPattern_J ->
+            "J"
+
+        KeyPattern_K ->
+            "K"
 
 
 walkStmt :

@@ -348,24 +348,24 @@ main() {
             """
 org 0x8000
 main:
-    jp _wait_0_start
-_wait_0_end:
+    jp _wait_decl_0_main_0_start
+_wait_decl_0_main_0_end:
 end:
     jp end
-_wait_0_start:
-_wait_0_JNotPressed:
+_wait_decl_0_main_0_start:
+_wait_decl_0_main_0_none_pressed:
     ld a,0xbf
     in a,(0xfe)
     bit 3,a
-    jp z,_wait_0_JNotPressed
-_wait_0_JPressed:
+    jp z,_wait_decl_0_main_0_none_pressed
+_wait_decl_0_main_0_any_pressed:
     ld a,0xbf
     in a,(0xfe)
     bit 3,a
-    jp z,_wait_0_onJ
-    jp _wait_0_JPressed
-_wait_0_onJ:
-    jp _wait_0_end
+    jp z,_wait_decl_0_main_0_onJ
+    jp _wait_decl_0_main_0_any_pressed
+_wait_decl_0_main_0_onJ:
+    jp _wait_decl_0_main_0_end
             """
         , testEmit
             """
@@ -379,25 +379,25 @@ main() {
 ROM_CLS EQU 0x0daf
 org 0x8000
 main:
-    jp _wait_0_start
-_wait_0_end:
+    jp _wait_decl_0_main_0_start
+_wait_decl_0_main_0_end:
 end:
     jp end
-_wait_0_start:
-_wait_0_JNotPressed:
+_wait_decl_0_main_0_start:
+_wait_decl_0_main_0_none_pressed:
     ld a,0xbf
     in a,(0xfe)
     bit 3,a
-    jp z,_wait_0_JNotPressed
-_wait_0_JPressed:
+    jp z,_wait_decl_0_main_0_none_pressed
+_wait_decl_0_main_0_any_pressed:
     ld a,0xbf
     in a,(0xfe)
     bit 3,a
-    jp z,_wait_0_onJ
-    jp _wait_0_JPressed
-_wait_0_onJ:
+    jp z,_wait_decl_0_main_0_onJ
+    jp _wait_decl_0_main_0_any_pressed
+_wait_decl_0_main_0_onJ:
     call ROM_CLS
-    jp _wait_0_end
+    jp _wait_decl_0_main_0_end
             """
         , testEmit
             """
@@ -411,29 +411,29 @@ main() {
             """
 org 0x8000
 main:
-    jp _wait_0_start
-_wait_0_end:
+    jp _wait_decl_0_main_0_start
+_wait_decl_0_main_0_end:
 end:
     jp end
-_wait_0_start:
-_wait_0_JKNotPressed:
+_wait_decl_0_main_0_start:
+_wait_decl_0_main_0_none_pressed:
     ld a,0xbf
     in a,(0xfe)
     bit 3,a
-    jp z,_wait_0_JKNotPressed
+    jp z,_wait_decl_0_main_0_none_pressed
     bit 2,a
-    jp z,_wait_0_JKNotPressed
-_wait_0_JKPressed:
+    jp z,_wait_decl_0_main_0_none_pressed
+_wait_decl_0_main_0_any_pressed:
     ld a,0xbf
     in a,(0xfe)
     bit 3,a
-    jp z,_wait_0_onJ
+    jp z,_wait_decl_0_main_0_onJ
     bit 2,a
-    jp z,_wait_0_onK
-    jp _wait_0_JKPressed
-_wait_0_onJ:
-    jp _wait_0_end
-_wait_0_onK:
-    jp _wait_0_end
+    jp z,_wait_decl_0_main_0_onK
+    jp _wait_decl_0_main_0_any_pressed
+_wait_decl_0_main_0_onJ:
+    jp _wait_decl_0_main_0_end
+_wait_decl_0_main_0_onK:
+    jp _wait_decl_0_main_0_end
             """
         ]

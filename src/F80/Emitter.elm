@@ -91,7 +91,7 @@ emitStmt parentCtx ix stmt =
     in
     case stmt of
         WaitForKeypress data ->
-            F80.Emitter.WaitForKeypress.emit data
+            F80.Emitter.WaitForKeypress.emit ctx emitBlock data
 
         Loop block ->
             let

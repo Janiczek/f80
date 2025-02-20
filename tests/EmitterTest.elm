@@ -187,6 +187,44 @@ renderStringLoop:
     jr renderStringLoop
 _string_0_0 db 'Hello', 0
             """
+        , testEmit
+            """
+main() {
+    Render.text(0, 1, "Hello")
+    Render.text(2, 3, "World")
+}
+            """
+            """
+AT EQU 0x16
+_string_0_0_length EQU 5
+_string_0_1_length EQU 5
+org 0x8000
+main:
+    ld hl,0x0001
+    ld de,_string_0_0
+    call renderString
+    ld hl,0x0203
+    ld de,_string_0_1
+    call renderString
+end:
+    jp end
+renderString:
+    ld a, AT
+    rst 0x10
+    ld a,l
+    rst 0x10
+    ld a,h
+    rst 0x10
+renderStringLoop:
+    ld a,(de)
+    cp 0
+    ret z
+    rst 0x10
+    inc de
+    jr renderStringLoop
+_string_0_0 db 'Hello', 0
+_string_0_1 db 'World', 0
+            """
         ]
 
 
@@ -211,6 +249,47 @@ decl_1_main_0:
     ld hl,0x0000
     ld de,hello
     call renderString
+    jp decl_1_main_0
+end:
+    jp end
+renderString:
+    ld a, AT
+    rst 0x10
+    ld a,l
+    rst 0x10
+    ld a,h
+    rst 0x10
+renderStringLoop:
+    ld a,(de)
+    cp 0
+    ret z
+    rst 0x10
+    inc de
+    jr renderStringLoop
+hello db 'Hello', 0
+            """
+        , testEmit
+            """
+const hello = "Hello"
+main() {
+    loop {
+        loop {
+            Render.text(0, 0, hello)
+        }
+    }
+}
+            """
+            """
+AT EQU 0x16
+hello_length EQU 5
+org 0x8000
+main:
+decl_1_main_0:
+decl_1_main_0_loop_0:
+    ld hl,0x0000
+    ld de,hello
+    call renderString
+    jp decl_1_main_0_loop_0
     jp decl_1_main_0
 end:
     jp end

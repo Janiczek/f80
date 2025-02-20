@@ -18,6 +18,7 @@ import F80.AST
         , Program
         , Stmt(..)
         , Value(..)
+        , WaitForKeyboardItem
         )
 import F80.Emitter.Global
 import F80.Emitter.Output as Output exposing (Output)
@@ -69,7 +70,7 @@ emitFnDecl ctx fnData =
             |> Output.add blockWithoutCode
 
     else
-        Output.fn
+        Output.other
             (List.concat
                 [ [ l fnData.name ]
                 , blockOutput.mainCode
@@ -88,8 +89,8 @@ emitStmt parentCtx ix stmt =
             String.fromInt ix :: parentCtx
     in
     case stmt of
-        WaitForKeyboard _ ->
-            Debug.todo "emitStmt WaitForKeyboard"
+        WaitForKeyboard data ->
+            emitWaitForKeyboard data
 
         Loop block ->
             let
@@ -114,6 +115,11 @@ emitStmt parentCtx ix stmt =
 
         CallStmt callData ->
             emitCall callData
+
+
+emitWaitForKeyboard : List WaitForKeyboardItem -> Output
+emitWaitForKeyboard cases =
+    Debug.todo "emitWaitForKeyboard"
 
 
 emitIf : IfStmtData -> Output

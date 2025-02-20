@@ -1,8 +1,9 @@
 module F80.Emitter.Output exposing
     ( Output
     , empty, smush, add, toString
-    , db, fn, code, equ
+    , db, code, equ
     , renderText
+    , other
     )
 
 {-|
@@ -16,12 +17,13 @@ module F80.Emitter.Output exposing
 
 import Dict exposing (Dict)
 import F80.Emitter.Util exposing (i, l)
+import Set exposing (Set)
 
 
 type alias Output =
     { equs : Dict String String
     , mainCode : List String -- This is special: inside emitStmt this will contain the currently emitted code. So it doesn't always mean `main()`.
-    , functions : List (List String)
+    , otherBlocks : Set (List String)
     , data : List String
     }
 
@@ -35,7 +37,7 @@ toString output =
         , F80.Emitter.Util.mainPrologue
         , output.mainCode
         , F80.Emitter.Util.mainEpilogue
-        , List.concat output.functions
+        , List.concat (Set.toList output.otherBlocks)
         , output.data
         ]
 
@@ -44,7 +46,7 @@ smush : Output -> Output -> Output
 smush s1 s2 =
     { equs = Dict.union s1.equs s2.equs
     , mainCode = s1.mainCode ++ s2.mainCode
-    , functions = s1.functions ++ s2.functions
+    , otherBlocks = Set.union s1.otherBlocks s2.otherBlocks
     , data = s1.data ++ s2.data
     }
 
@@ -58,7 +60,7 @@ empty : Output
 empty =
     { equs = Dict.empty
     , mainCode = []
-    , functions = []
+    , otherBlocks = Set.empty
     , data = []
     }
 
@@ -68,9 +70,9 @@ db name value =
     { empty | data = [ name ++ " db " ++ value ] }
 
 
-fn : List String -> Output
-fn asm =
-    { empty | functions = [ asm ] }
+other : List String -> Output
+other asm =
+    { empty | otherBlocks = Set.singleton asm }
 
 
 code : List String -> Output
@@ -89,24 +91,24 @@ renderText : Output
 renderText =
     { equs = Dict.singleton "AT" "0x16"
     , mainCode = []
-    , functions =
-        [ [ l "renderString"
-          , i "ld a, AT"
-          , i "rst 0x10"
-          , i "ld a,l"
-          , i "rst 0x10"
-          , i "ld a,h"
-          , i "rst 0x10"
+    , otherBlocks =
+        Set.singleton
+            [ l "renderString"
+            , i "ld a, AT"
+            , i "rst 0x10"
+            , i "ld a,l"
+            , i "rst 0x10"
+            , i "ld a,h"
+            , i "rst 0x10"
 
-          --
-          , l "renderStringLoop"
-          , i "ld a,(de)"
-          , i "cp 0"
-          , i "ret z"
-          , i "rst 0x10"
-          , i "inc de"
-          , i "jr renderStringLoop"
-          ]
-        ]
+            --
+            , l "renderStringLoop"
+            , i "ld a,(de)"
+            , i "cp 0"
+            , i "ret z"
+            , i "rst 0x10"
+            , i "inc de"
+            , i "jr renderStringLoop"
+            ]
     , data = []
     }

@@ -26,7 +26,7 @@ emitGlobalDecl globalData =
 
         VString s ->
             Output.db globalData.name (emitValue globalData.value)
-                -- Also make a label for the end of the string so that we can compute the length
+                -- Add EQU for the string length
                 |> Output.add
                     (Output.equ
                         (F80.Emitter.Util.globalStringLengthLabel globalData.name)

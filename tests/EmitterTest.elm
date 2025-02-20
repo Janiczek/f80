@@ -130,7 +130,7 @@ const hello = "Hello"
 main() {
     Render.text(3, 5, hello)
 }
-                """
+            """
             """
 AT EQU 0x16
 hello_length EQU 5
@@ -156,6 +156,38 @@ renderStringLoop:
     inc de
     jr renderStringLoop
 hello db 'Hello', 0
+            """
+        , testEmit
+            """
+main() {
+    Render.text(3, 5, "Hello")
+}
+            """
+            """
+AT EQU 0x16
+_string_0_length EQU 5
+org 0x8000
+main:
+    ld hl,0x0305
+    ld de,_string_0
+    call renderString
+end:
+    jp end
+renderString:
+    ld a, AT
+    rst 0x10
+    ld a,l
+    rst 0x10
+    ld a,h
+    rst 0x10
+renderStringLoop:
+    ld a,(de)
+    cp 0
+    ret z
+    rst 0x10
+    inc de
+    jr renderStringLoop
+_string_0 db 'Hello', 0
             """
         ]
 

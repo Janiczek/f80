@@ -123,11 +123,11 @@ len db hello_length
 
 romCls : Test
 romCls =
-    Test.describe "ROM.cls()"
+    Test.describe "ROM.clearScreen()"
         [ testEmit
             """
 main() {
-    ROM.cls()
+    ROM.clearScreen()
 }
             """
             """
@@ -371,7 +371,7 @@ _wait_0_onJ:
             """
 main() {
     wait for keypress {
-        Key.J -> { ROM.cls() }
+        Key.J -> { ROM.clearScreen() }
     }
 }
             """

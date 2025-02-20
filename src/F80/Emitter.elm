@@ -23,6 +23,7 @@ import F80.AST
 import F80.Emitter.Global
 import F80.Emitter.Output as Output exposing (Output)
 import F80.Emitter.Util as Util exposing (ctxLabel, i, l)
+import F80.Emitter.WaitForKeypress
 import Hex
 
 
@@ -38,7 +39,7 @@ emitDecl : Int -> Decl -> Output
 emitDecl ix decl =
     case decl of
         GlobalDecl data ->
-            F80.Emitter.Global.emitGlobalDecl data
+            F80.Emitter.Global.emit data
 
         FnDecl data ->
             let
@@ -90,7 +91,7 @@ emitStmt parentCtx ix stmt =
     in
     case stmt of
         WaitForKeypress data ->
-            emitWaitForKeypress data
+            F80.Emitter.WaitForKeypress.emit data
 
         Loop block ->
             let
@@ -117,29 +118,6 @@ emitStmt parentCtx ix stmt =
             emitCall callData
 
 
-emitWaitForKeypress : List WaitForKeypressItem -> Output
-emitWaitForKeypress cases =
-    case cases of
-        [] ->
-            Debug.todo "Define what should happen when the wait has no patterns. 'Press any key'?"
-
-        [ case_ ] ->
-            emitWaitForKeypressSingle case_
-
-        _ ->
-            emitWaitForKeypressMultiple cases
-
-
-emitWaitForKeypressSingle : WaitForKeypressItem -> Output
-emitWaitForKeypressSingle case_ =
-    Debug.todo "emitWaitForKeypressSingle"
-
-
-emitWaitForKeypressMultiple : List WaitForKeypressItem -> Output
-emitWaitForKeypressMultiple cases =
-    Debug.todo "emitWaitForKeypressMultiple"
-
-
 emitIf : IfStmtData -> Output
 emitIf ifData =
     Debug.todo "emitIf"
@@ -160,7 +138,7 @@ emitAssign assignData =
 emitCall : CallData -> Output
 emitCall callData =
     case callData.fn of
-        "ROM.cls" ->
+        "ROM.clearScreen" ->
             Output.romCls
 
         "Render.text" ->

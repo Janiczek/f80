@@ -15,7 +15,7 @@ sourceCode : String
 sourceCode =
     """
 main() {
-  ROM.cls()
+  ROM.clearScreen()
   let counter = 0
   renderStaticText()
   loop {
@@ -47,7 +47,7 @@ ast =
         , params = []
         , body =
             [ CallStmt
-                { fn = "ROM.cls"
+                { fn = "ROM.clearScreen"
                 , args = []
                 }
             , DefineLet

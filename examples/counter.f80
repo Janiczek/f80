@@ -1,5 +1,5 @@
 main() {
-  ROM.cls()
+  ROM.clearScreen()
   let counter = 0
   renderStaticText()
   loop {

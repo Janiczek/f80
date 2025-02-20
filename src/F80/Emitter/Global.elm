@@ -1,12 +1,12 @@
-module F80.Emitter.Global exposing (emitGlobalDecl)
+module F80.Emitter.Global exposing (emit)
 
 import F80.AST exposing (GlobalDeclData, Value(..))
 import F80.Emitter.Output as Output exposing (Output)
 import F80.Emitter.Util
 
 
-emitGlobalDecl : GlobalDeclData -> Output
-emitGlobalDecl globalData =
+emit : GlobalDeclData -> Output
+emit globalData =
     let
         default () =
             Output.db globalData.name (emitValue globalData.value)

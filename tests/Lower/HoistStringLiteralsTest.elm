@@ -235,10 +235,10 @@ main() {
             """
 main() {
     wait for keyboard {
-      Key.Plus -> {
+      Key.J -> {
           x = "hello"
       }
-      Key.Minus -> {
+      Key.K -> {
           x = "world"
       }
     }
@@ -249,10 +249,10 @@ const _string_0_0 = "hello"
 const _string_0_1 = "world"
 main() {
     wait for keyboard {
-        Key.Plus -> {
+        Key.J -> {
             x = _string_0_0
         }
-        Key.Minus -> {
+        Key.K -> {
             x = _string_0_1
         }
     }

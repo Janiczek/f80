@@ -158,8 +158,8 @@ type BinOp
 
 
 type KeyPattern
-    = KeyPattern_Plus
-    | KeyPattern_Minus
+    = KeyPattern_J
+    | KeyPattern_K
 
 
 walkStmt :

@@ -214,8 +214,8 @@ waitForKeyboardTests =
                 """
 main() {
     wait for keyboard {
-        Key.Plus -> { x += 1 }
-        Key.Minus -> { x -= 1 }
+        Key.J -> { x += 1 }
+        Key.K -> { x -= 1 }
     }
 }
 """
@@ -227,10 +227,10 @@ main() {
                                 , params = []
                                 , body =
                                     [ WaitForKeyboard
-                                        [ { on = KeyPattern_Plus
+                                        [ { on = KeyPattern_J
                                           , body = [ Assign { var = "x", op = Just BOp_Add, value = Int 1 } ]
                                           }
-                                        , { on = KeyPattern_Minus
+                                        , { on = KeyPattern_K
                                           , body = [ Assign { var = "x", op = Just BOp_Sub, value = Int 1 } ]
                                           }
                                         ]
@@ -280,7 +280,7 @@ main() {
                 """
 main() {
     wait for keyboard {
-      Key.Minus -> { if (counter > 0) { counter -= 1 } }
+      Key.J -> { if (counter > 0) { counter -= 1 } }
     }
 }
 """
@@ -292,7 +292,7 @@ main() {
                                 , params = []
                                 , body =
                                     [ WaitForKeyboard
-                                        [ { on = KeyPattern_Minus
+                                        [ { on = KeyPattern_J
                                           , body =
                                                 [ If
                                                     { cond =

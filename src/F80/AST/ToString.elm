@@ -165,11 +165,11 @@ blockToString body =
 keyPatternToString : KeyPattern -> String
 keyPatternToString pattern =
     case pattern of
-        KeyPattern_Plus ->
-            "Key.Plus"
+        KeyPattern_J ->
+            "Key.J"
 
-        KeyPattern_Minus ->
-            "Key.Minus"
+        KeyPattern_K ->
+            "Key.K"
 
 
 exprToString : Expr -> String

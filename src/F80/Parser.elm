@@ -141,8 +141,8 @@ waitForKeyboardItem =
 keyPattern : Parser F80.AST.KeyPattern
 keyPattern =
     Parser.oneOf
-        [ Parser.succeed F80.AST.KeyPattern_Plus |. Parser.symbol "Key.Plus"
-        , Parser.succeed F80.AST.KeyPattern_Minus |. Parser.symbol "Key.Minus"
+        [ Parser.succeed F80.AST.KeyPattern_J |. Parser.symbol "Key.J"
+        , Parser.succeed F80.AST.KeyPattern_K |. Parser.symbol "Key.K"
         ]
 
 

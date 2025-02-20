@@ -20,22 +20,23 @@ main =
         }
 
 
-run : String -> Result F80.Error.Error ()
+run : String -> Result F80.Error.Error String
 run sourceCode =
     Ok sourceCode
         |> Result.andThen (F80.Parser.parse >> Result.mapError F80.Error.ParserError)
-        |> Debug.log "parsed"
-        |> Result.andThen (F80.Lower.HoistStringLiterals.hoistStringLiterals >> Result.mapError F80.Error.HoistStringLiteralsError)
-        |> Debug.log "lowered (hoisted string literals to globals)"
+        --|> Debug.log "parsed"
+        |> Result.map F80.Lower.HoistStringLiterals.hoist
+        --|> Debug.log "lowered (hoisted string literals to globals)"
         -- TODO: F80.TypeInference.infer
-        |> Result.andThen (F80.Emitter.emit >> Result.mapError F80.Error.EmitterError)
-        |> Debug.log "emitted"
+        |> Result.map F80.Emitter.emit
+        --|> Debug.log "emitted"
+        |> Result.map (String.join "\n")
 
 
 init : () -> ( (), Cmd Never )
 init () =
     let
-        result : Result F80.Error.Error ()
+        result : Result F80.Error.Error String
         result =
             run Example.sourceCode
     in

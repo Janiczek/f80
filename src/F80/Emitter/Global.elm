@@ -1,14 +1,15 @@
 module F80.Emitter.Global exposing (emitGlobalDecl)
 
 import F80.AST exposing (GlobalDeclData, Value(..))
+import F80.Emitter.Output as Output exposing (Output)
 import F80.Emitter.Util
 
 
-emitGlobalDecl : GlobalDeclData -> List String
+emitGlobalDecl : GlobalDeclData -> Output
 emitGlobalDecl globalData =
     let
         default () =
-            [ globalData.name ++ " db " ++ emitValue globalData.value ]
+            Output.db globalData.name (emitValue globalData.value)
     in
     case globalData.value of
         VInt _ ->
@@ -24,14 +25,17 @@ emitGlobalDecl globalData =
             default ()
 
         VString s ->
-            -- Also make a label for the end of the string so that we can compute the length
-            [ globalData.name ++ " db " ++ emitValue globalData.value
-            , F80.Emitter.Util.globalStringLengthLabel globalData.name ++ " EQU " ++ String.fromInt (String.length s)
-            ]
+            Output.db globalData.name (emitValue globalData.value)
+                -- Also make a label for the end of the string so that we can compute the length
+                |> Output.add
+                    (Output.equ
+                        (F80.Emitter.Util.globalStringLengthLabel globalData.name)
+                        (String.fromInt (String.length s))
+                    )
 
         VGlobal otherName ->
             -- Use EQU so that we don't allocate the same data multiple times
-            [ globalData.name ++ " EQU " ++ otherName ]
+            Output.equ globalData.name otherName
 
 
 emitValue : Value -> String

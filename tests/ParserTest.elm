@@ -202,6 +202,7 @@ statementTests =
         , defineLetTests
         , assignTests
         , callStmtTests
+        , callRenderTextStmtTests
         ]
 
 
@@ -565,6 +566,35 @@ main() {
                                         { var = "x"
                                         , op = Just BOp_Add
                                         , value = CallExpr { fn = "foo", args = [ Int 42 ] }
+                                        }
+                                    ]
+                                }
+                            ]
+                        )
+        ]
+
+
+callRenderTextStmtTests : Test
+callRenderTextStmtTests =
+    Test.describe "Call Render.text()"
+        [ Test.test "basic" <|
+            \_ ->
+                """
+main() {
+    Render.text(3, 5, hello)
+}
+"""
+                    |> F80.Parser.parse
+                    |> Expect.equal
+                        (Ok
+                            [ FnDecl
+                                { name = "main"
+                                , params = []
+                                , body =
+                                    [ CallRenderTextStmt
+                                        { string = Var "hello"
+                                        , x = Int 3
+                                        , y = Int 5
                                         }
                                     ]
                                 }

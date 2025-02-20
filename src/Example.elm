@@ -155,21 +155,15 @@ ast =
         { name = "renderText"
         , params = []
         , body =
-            [ CallStmt
-                { fn = "Render.text"
-                , args =
-                    [ Var "textX"
-                    , Var "counterY"
-                    , Var "counterLabel"
-                    ]
+            [ CallRenderTextStmt
+                { x = Var "textX"
+                , y = Var "counterY"
+                , string = Var "counterLabel"
                 }
-            , CallStmt
-                { fn = "Render.text"
-                , args =
-                    [ Var "textX"
-                    , Var "helpY"
-                    , String "Press + or -"
-                    ]
+            , CallRenderTextStmt
+                { x = Var "textX"
+                , y = Var "helpY"
+                , string = String "Press + or -"
                 }
             ]
         }
@@ -195,13 +189,10 @@ ast =
                     , Var "previous"
                     ]
                 }
-            , CallStmt
-                { fn = "Render.text"
-                , args =
-                    [ Var "counterX"
-                    , Var "counterY"
-                    , Var "counterStr"
-                    ]
+            , CallRenderTextStmt
+                { x = Var "counterX"
+                , y = Var "counterY"
+                , string = Var "counterStr"
                 }
             ]
         }
@@ -241,17 +232,15 @@ ast =
                         , right = Var "lenPrevious"
                         }
                 , then_ =
-                    [ CallStmt
-                        { fn = "Render.text"
-                        , args =
-                            [ BinOp
+                    [ CallRenderTextStmt
+                        { x =
+                            BinOp
                                 { op = BOp_Add
                                 , left = Var "counterX"
                                 , right = Var "lenCounter"
                                 }
-                            , Var "counterY"
-                            , String " "
-                            ]
+                        , y = Var "counterY"
+                        , string = String " "
                         }
                     ]
                 , else_ = Nothing

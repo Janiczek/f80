@@ -3,12 +3,14 @@ module F80.Emitter exposing (emit)
 {-| Prepares assembly for consumption by the PASMO Z80 assembler.
 -}
 
+import Dict exposing (Dict)
 import F80.AST
     exposing
         ( AssignData
         , BinOp(..)
         , Block
         , CallData
+        , CallRenderTextStmtData
         , Decl(..)
         , Expr(..)
         , FnDeclData
@@ -19,56 +21,94 @@ import F80.AST
         , Value(..)
         )
 import F80.Emitter.Global
-import F80.Emitter.Util exposing (i, l)
+import F80.Emitter.Output as Output exposing (Output)
+import F80.Emitter.Util as Util exposing (ctxLabel, i, l)
+import Hex
 
 
 emit : Program -> List String
 emit program =
-    List.concatMap emitDecl program
+    program
+        |> List.indexedMap emitDecl
+        |> List.foldl Output.add Output.empty
+        |> Output.toString
 
 
-emitDecl : Decl -> List String
-emitDecl decl =
+emitDecl : Int -> Decl -> Output
+emitDecl ix decl =
     case decl of
         GlobalDecl data ->
             F80.Emitter.Global.emitGlobalDecl data
 
         FnDecl data ->
-            emitFnDecl data
+            let
+                ctx =
+                    [ String.fromInt ix, "decl" ]
+            in
+            emitFnDecl ctx data
 
 
-emitFnDecl : FnDeclData -> List String
-emitFnDecl fnData =
-    List.concat
-        [ [ l fnData.name ]
-        , emitBlock fnData.body
-        , [ i "ret" ]
-        ]
+emitFnDecl : List String -> FnDeclData -> Output
+emitFnDecl ctx fnData =
+    let
+        isMain =
+            fnData.name == Util.mainFnName
+
+        blockOutput =
+            emitBlock (fnData.name :: ctx) fnData.body
+
+        blockWithoutCode =
+            { blockOutput | mainCode = [] }
+    in
+    if isMain then
+        Output.code
+            (List.concat
+                [ [ l fnData.name ]
+                , blockOutput.mainCode
+                ]
+            )
+            |> Output.add blockWithoutCode
+
+    else
+        Output.fn
+            (List.concat
+                [ [ l fnData.name ]
+                , blockOutput.mainCode
+                , [ i "ret" ]
+                ]
+            )
+            |> Output.add blockWithoutCode
 
 
-emitStmt : Stmt -> List String
-emitStmt stmt =
+{-| These will emit their ASM blocks in the Output.mainCode field. That doesn't mean it's meant to go into `main()`!
+-}
+emitStmt : List String -> Int -> Stmt -> Output
+emitStmt parentCtx ix stmt =
+    let
+        ctx =
+            String.fromInt ix :: parentCtx
+    in
     case stmt of
         WaitForKeyboard _ ->
             Debug.todo "emitStmt WaitForKeyboard"
 
-        Loop subBlock ->
-            [ "; begin loop" ]
-                ++ emitBlock subBlock
-                ++ [ "; end loop" ]
+        Loop block ->
+            let
+                label =
+                    Util.ctxLabel ctx
+            in
+            Output.code [ l label ]
+                |> Output.add (emitBlock ("loop" :: ctx) block)
+                |> Output.add (Output.code [ i <| "jp " ++ label ])
 
         If ifData ->
             emitIf ifData
 
         DefineConst defConst ->
-            [ "; define const " ++ defConst.name
-            , "; (not directly implemented in code generation)"
-            ]
+            Debug.todo <| "emitStmt defineConst: " ++ Debug.toString defConst
 
         DefineLet defLet ->
-            [ "; define let " ++ defLet.name
-            , "; (not directly implemented in code generation)"
-            ]
+            Debug.todo <| "emitStmt defineLet: " ++ Debug.toString defLet
 
         Assign assignData ->
             emitAssign assignData
@@ -76,49 +116,112 @@ emitStmt stmt =
         CallStmt callData ->
             emitCall callData
 
+        CallRenderTextStmt callData ->
+            emitCallRenderText callData
 
-emitIf : IfStmtData -> List String
+
+emitIf : IfStmtData -> Output
 emitIf ifData =
-    [ "; if statement (cond not fully implemented yet)" ]
-        ++ emitBlock ifData.then_
-        ++ (case ifData.else_ of
-                Nothing ->
-                    []
-
-                Just elseBlock ->
-                    [ "; else" ]
-                        ++ emitBlock elseBlock
-           )
+    Debug.todo "emitIf"
 
 
-emitBlock : Block -> List String
-emitBlock block =
-    List.concatMap emitStmt block
+emitBlock : List String -> Block -> Output
+emitBlock ctx block =
+    block
+        |> List.indexedMap (emitStmt ctx)
+        |> List.foldl Output.add Output.empty
 
 
-emitAssign : AssignData -> List String
+emitAssign : AssignData -> Output
 emitAssign assignData =
-    let
-        opComment : String
-        opComment =
-            case assignData.op of
-                Nothing ->
-                    ""
-
-                Just op ->
-                    " ; operator: " ++ Debug.toString op
-    in
-    [ "; assign " ++ assignData.var ++ opComment
-    , "; (not fully implemented)"
-    ]
+    Debug.todo "emitAssign"
 
 
-emitCall : CallData -> List String
+emitCall : CallData -> Output
 emitCall callData =
-    List.concat
-        [ pushArgs callData.args
-        , [ i <| "call " ++ callData.fn ]
-        ]
+    Output.code
+        (List.concat
+            [ pushArgs callData.args
+            , [ i <| "call " ++ callData.fn ]
+            ]
+        )
+
+
+emitCallRenderText : CallRenderTextStmtData -> Output
+emitCallRenderText callData =
+    Output.code
+        (List.concat
+            [ renderTextXYHL callData.x callData.y
+            , [ case callData.string of
+                    Var name ->
+                        i <| "ld de," ++ name
+
+                    String str ->
+                        Debug.todo "Render.text - this should have been caught - we should have hoisted the string literal to a global constant and changed this call to use the var"
+
+                    _ ->
+                        let
+                            _ =
+                                Debug.log "Unexpected Render.text string argument" callData.string
+                        in
+                        Debug.todo "Unexpected Render.text string argument - this should have been typechecked before emitting"
+              , i <| "call renderString"
+              ]
+            ]
+        )
+        |> Output.add Output.renderText
+
+
+renderTextXYHL : Expr -> Expr -> List String
+renderTextXYHL x y =
+    let
+        emitInt : String -> Int -> String
+        emitInt reg n =
+            Hex.toString n
+                |> String.padLeft 2 '0'
+                |> add0x
+                |> (\hex -> i <| "ld " ++ reg ++ "," ++ hex)
+
+        emitVar : String -> String -> String
+        emitVar reg var =
+            Debug.todo "TODO emit var"
+    in
+    case ( x, y ) of
+        ( Int xx, Int yy ) ->
+            -- Special optimized case
+            -- ld hl,0xXXYY
+            (xx * 256 + yy)
+                |> Hex.toString
+                |> String.padLeft 4 '0'
+                |> add0x
+                |> (\hex -> [ i <| "ld hl," ++ hex ])
+
+        ( Int xx, Var yy ) ->
+            [ emitInt "h" xx
+            , emitVar "l" yy
+            ]
+
+        ( Var xx, Int yy ) ->
+            [ emitVar "h" xx
+            , emitInt "l" yy
+            ]
+
+        ( Var xx, Var yy ) ->
+            [ emitVar "h" xx
+            , emitVar "l" yy
+            ]
+
+        ( _, _ ) ->
+            let
+                _ =
+                    Debug.log "Unexpected Render.text X,Y argument" ( x, y )
+            in
+            Debug.todo "Unexpected Render.text X,Y argument - this should have been typechecked before emitting"
+
+
+add0x : String -> String
+add0x s =
+    "0x" ++ s
 
 
 pushArgs : List Expr -> List String

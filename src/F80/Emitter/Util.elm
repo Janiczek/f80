@@ -1,4 +1,18 @@
-module F80.Emitter.Util exposing (emitBinOp, globalStringLengthLabel, i, l)
+module F80.Emitter.Util exposing
+    ( i, l, ctxLabel
+    , mainEpilogue, mainPrologue, mainFnName
+    , emitBinOp
+    , globalStringLengthLabel
+    )
+
+{-|
+
+@docs i, l, ctxLabel
+@docs mainEpilogue, mainPrologue, mainFnName
+@docs emitBinOp
+@docs globalStringLengthLabel
+
+-}
 
 import F80.AST exposing (BinOp(..))
 
@@ -11,6 +25,26 @@ l label =
 i : String -> String
 i instruction =
     "    " ++ instruction
+
+
+ctxLabel : List String -> String
+ctxLabel ctx =
+    ctx
+        |> List.reverse
+        |> String.join "_"
+
+
+mainPrologue : List String
+mainPrologue =
+    [ "org 0x8000"
+    ]
+
+
+mainEpilogue : List String
+mainEpilogue =
+    [ l "end"
+    , i "jp end"
+    ]
 
 
 globalStringLengthLabel : String -> String
@@ -32,3 +66,8 @@ emitBinOp op =
 
         BOp_Gt ->
             ">"
+
+
+mainFnName : String
+mainFnName =
+    "main"

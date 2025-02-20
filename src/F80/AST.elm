@@ -9,6 +9,7 @@ module F80.AST exposing
     , Expr(..), BinOp(..), IfExprData, BinOpData
     , Value(..)
     , KeyPattern(..)
+    , CallRenderTextStmtData
     )
 
 {-|
@@ -25,6 +26,7 @@ module F80.AST exposing
 @docs Expr, BinOp, IfExprData, BinOpData
 @docs Value
 @docs KeyPattern
+@docs CallRenderTextStmtData
 
 -}
 
@@ -83,6 +85,14 @@ type Stmt
     | DefineLet DefineLetData
     | Assign AssignData
     | CallStmt CallData
+    | CallRenderTextStmt CallRenderTextStmtData
+
+
+type alias CallRenderTextStmtData =
+    { string : Expr
+    , x : Expr
+    , y : Expr
+    }
 
 
 type alias AssignData =

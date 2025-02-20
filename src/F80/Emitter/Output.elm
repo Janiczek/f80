@@ -2,7 +2,7 @@ module F80.Emitter.Output exposing
     ( Output
     , empty, smush, add, toString
     , db, code, equ
-    , renderText
+    , renderText, romCls
     , other
     )
 
@@ -11,7 +11,10 @@ module F80.Emitter.Output exposing
 @docs Output
 @docs empty, smush, add, toString
 @docs db, fn, code, equ
-@docs renderText
+
+Standard library
+
+@docs renderText, romCls
 
 -}
 
@@ -93,7 +96,7 @@ renderText =
     , mainCode = []
     , otherBlocks =
         Set.singleton
-            [ l "renderString"
+            [ l "_renderString"
             , i "ld a, AT"
             , i "rst 0x10"
             , i "ld a,l"
@@ -102,13 +105,22 @@ renderText =
             , i "rst 0x10"
 
             --
-            , l "renderStringLoop"
+            , l "_renderStringLoop"
             , i "ld a,(de)"
             , i "cp 0"
             , i "ret z"
             , i "rst 0x10"
             , i "inc de"
-            , i "jr renderStringLoop"
+            , i "jr _renderStringLoop"
             ]
+    , data = []
+    }
+
+
+romCls : Output
+romCls =
+    { equs = Dict.singleton "ROM_CLS" "0x0daf"
+    , mainCode = [ i "call ROM_CLS" ]
+    , otherBlocks = Set.empty
     , data = []
     }

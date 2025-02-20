@@ -43,6 +43,7 @@ suite =
     Test.describe "F80.Emitter.emit"
         [ globals
         , renderText
+        , romCls
         , loops
         ]
 
@@ -119,6 +120,26 @@ len db hello_length
         ]
 
 
+romCls : Test
+romCls =
+    Test.describe "ROM.cls()"
+        [ testEmit
+            """
+main() {
+    ROM.cls()
+}
+            """
+            """
+ROM_CLS EQU 0x0daf
+org 0x8000
+main:
+    call ROM_CLS
+end:
+    jp end
+            """
+        ]
+
+
 renderText : Test
 renderText =
     Test.describe "Render.text()"
@@ -136,23 +157,23 @@ org 0x8000
 main:
     ld hl,0x0305
     ld de,hello
-    call renderString
+    call _renderString
 end:
     jp end
-renderString:
+_renderString:
     ld a, AT
     rst 0x10
     ld a,l
     rst 0x10
     ld a,h
     rst 0x10
-renderStringLoop:
+_renderStringLoop:
     ld a,(de)
     cp 0
     ret z
     rst 0x10
     inc de
-    jr renderStringLoop
+    jr _renderStringLoop
 hello db 'Hello', 0
             """
         , testEmit
@@ -168,23 +189,23 @@ org 0x8000
 main:
     ld hl,0x0305
     ld de,_string_0_0
-    call renderString
+    call _renderString
 end:
     jp end
-renderString:
+_renderString:
     ld a, AT
     rst 0x10
     ld a,l
     rst 0x10
     ld a,h
     rst 0x10
-renderStringLoop:
+_renderStringLoop:
     ld a,(de)
     cp 0
     ret z
     rst 0x10
     inc de
-    jr renderStringLoop
+    jr _renderStringLoop
 _string_0_0 db 'Hello', 0
             """
         , testEmit
@@ -202,26 +223,26 @@ org 0x8000
 main:
     ld hl,0x0001
     ld de,_string_0_0
-    call renderString
+    call _renderString
     ld hl,0x0203
     ld de,_string_0_1
-    call renderString
+    call _renderString
 end:
     jp end
-renderString:
+_renderString:
     ld a, AT
     rst 0x10
     ld a,l
     rst 0x10
     ld a,h
     rst 0x10
-renderStringLoop:
+_renderStringLoop:
     ld a,(de)
     cp 0
     ret z
     rst 0x10
     inc de
-    jr renderStringLoop
+    jr _renderStringLoop
 _string_0_0 db 'Hello', 0
 _string_0_1 db 'World', 0
             """
@@ -248,24 +269,24 @@ main:
 decl_1_main_0:
     ld hl,0x0000
     ld de,hello
-    call renderString
+    call _renderString
     jp decl_1_main_0
 end:
     jp end
-renderString:
+_renderString:
     ld a, AT
     rst 0x10
     ld a,l
     rst 0x10
     ld a,h
     rst 0x10
-renderStringLoop:
+_renderStringLoop:
     ld a,(de)
     cp 0
     ret z
     rst 0x10
     inc de
-    jr renderStringLoop
+    jr _renderStringLoop
 hello db 'Hello', 0
             """
         , testEmit
@@ -288,25 +309,25 @@ decl_1_main_0:
 decl_1_main_0_loop_0:
     ld hl,0x0000
     ld de,hello
-    call renderString
+    call _renderString
     jp decl_1_main_0_loop_0
     jp decl_1_main_0
 end:
     jp end
-renderString:
+_renderString:
     ld a, AT
     rst 0x10
     ld a,l
     rst 0x10
     ld a,h
     rst 0x10
-renderStringLoop:
+_renderStringLoop:
     ld a,(de)
     cp 0
     ret z
     rst 0x10
     inc de
-    jr renderStringLoop
+    jr _renderStringLoop
 hello db 'Hello', 0
             """
         ]

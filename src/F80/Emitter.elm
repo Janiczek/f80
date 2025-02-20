@@ -142,6 +142,9 @@ emitAssign assignData =
 emitCall : CallData -> Output
 emitCall callData =
     case callData.fn of
+        "ROM.cls" ->
+            Output.romCls
+
         "Render.text" ->
             emitCallRenderText callData
 
@@ -174,7 +177,7 @@ emitCallRenderText callData =
                                         Debug.log "Unexpected Render.text string argument" string
                                 in
                                 Debug.todo "Unexpected Render.text string argument - this should have been typechecked before emitting"
-                      , i <| "call renderString"
+                      , i <| "call _renderString"
                       ]
                     ]
                 )

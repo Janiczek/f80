@@ -166,10 +166,10 @@ keyPatternToString : KeyPattern -> String
 keyPatternToString pattern =
     case pattern of
         KeyPattern_Plus ->
-            "+"
+            "Key.Plus"
 
         KeyPattern_Minus ->
-            "-"
+            "Key.Minus"
 
 
 exprToString : Expr -> String

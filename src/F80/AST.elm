@@ -175,7 +175,22 @@ walkStmt fExpr fStmt acc stmt =
     in
     case newStmt of
         WaitForKeyboard items ->
-            ( newAcc, WaitForKeyboard items )
+            let
+                ( finalAcc, newItems ) =
+                    List.foldl
+                        (\item ( accItem, items_ ) ->
+                            let
+                                ( newAccItem, newBody ) =
+                                    walkBlock fExpr fStmt accItem item.body
+                            in
+                            ( newAccItem
+                            , items_ ++ [ { item | body = newBody } ]
+                            )
+                        )
+                        ( newAcc, [] )
+                        items
+            in
+            ( finalAcc, WaitForKeyboard newItems )
 
         Loop block ->
             let

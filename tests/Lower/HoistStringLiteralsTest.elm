@@ -231,4 +231,31 @@ main() {
     }
 }
             """
+        , testLower
+            """
+main() {
+    wait for keyboard {
+      Key.Plus -> {
+          x = "hello"
+      }
+      Key.Minus -> {
+          x = "world"
+      }
+    }
+}
+            """
+            """
+const _string_0_0 = "hello"
+const _string_0_1 = "world"
+main() {
+    wait for keyboard {
+        Key.Plus -> {
+            x = _string_0_0
+        }
+        Key.Minus -> {
+            x = _string_0_1
+        }
+    }
+}
+            """
         ]

@@ -128,7 +128,12 @@ emitReturn maybeExpr =
 
 emitIf : IfStmtData -> Output
 emitIf ifData =
-    Debug.todo "emitIf"
+    case ifData.else_ of
+        Nothing ->
+            Debug.todo "emitIf withoutElse"
+
+        Just else_ ->
+            Debug.todo "emitIf withElse"
 
 
 emitBlock : List String -> Block -> Output

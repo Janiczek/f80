@@ -42,8 +42,8 @@ mainPrologue =
 
 mainEpilogue : List String
 mainEpilogue =
-    [ l "end"
-    , i "jp end"
+    [ l "_end"
+    , i "jp _end"
     ]
 
 

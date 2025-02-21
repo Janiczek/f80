@@ -171,7 +171,7 @@ bytes db 1, 2, 3
 org 0x8000
 _end:
     jp _end
-bool db 1
+bool db 255
             """
         , testEmit
             "const bool = false"
@@ -239,7 +239,7 @@ unop db - 5
 org 0x8000
 _end:
     jp _end
-unop db NOT 1
+unop db NOT 255
             """
         , testEmit
             """const len = String.length("Hello World!")"""
@@ -410,7 +410,7 @@ main() {
 ROM_CLS EQU 0x0daf
 org 0x8000
 main:
-    ld a,1
+    ld a,255
     cp a
     jz _ifstmt_decl_0_main_0_end
     call ROM_CLS
@@ -433,7 +433,7 @@ main() {
 ROM_CLS EQU 0x0daf
 org 0x8000
 main:
-    ld a,1
+    ld a,255
     cp a
     jz _ifstmt_decl_0_main_0_else
     call ROM_CLS
@@ -475,7 +475,7 @@ _ifstmt_decl_0_main_0_end:
 _end:
     jp _end
 fn:
-    ld a,1
+    ld a,255
     ret
             """
         ]
@@ -678,9 +678,45 @@ exprs =
         , bools
         , Test.todo "vars"
         , Test.todo "binops"
-        , Test.todo "unaryops"
+        , unaryOps
         , Test.todo "calls"
         , ifExprs
+        ]
+
+
+unaryOps : Test
+unaryOps =
+    Test.describe "unary ops"
+        [ testEmit
+            """
+main() {
+    return -1
+}
+            """
+            """
+org 0x8000
+main:
+    ld a,1
+    neg
+    jp _end
+_end:
+    jp _end
+            """
+        , testEmit
+            """
+main() {
+    return !true
+}
+            """
+            """
+org 0x8000
+main:
+    ld a,255
+    neg
+    jp _end
+_end:
+    jp _end
+            """
         ]
 
 
@@ -741,7 +777,7 @@ main:
 _end:
     jp _end
 fn:
-    ld a,1
+    ld a,255
     ret
             """
         , testEmit
@@ -777,7 +813,7 @@ main() {
             """
 org 0x8000
 main:
-    ld a,1
+    ld a,255
     cp a
     jz _ifexpr_decl_0_main_0_return_else
     ld a,5
@@ -803,7 +839,7 @@ main:
 _end:
     jp _end
 fn:
-    ld a,1
+    ld a,255
     cp a
     jz _ifexpr_decl_1_fn_0_return_else
     ld a,5
@@ -827,7 +863,7 @@ main:
 _end:
     jp _end
 fn:
-    ld a,1
+    ld a,255
     cp a
     jz _ifexpr_decl_1_fn_0_return_else
     ld a,0

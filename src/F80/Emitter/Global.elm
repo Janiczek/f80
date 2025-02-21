@@ -55,7 +55,7 @@ emitValue val =
 
         VBool bool ->
             if bool then
-                "1"
+                "255"
 
             else
                 "0"

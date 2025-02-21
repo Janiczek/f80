@@ -22,6 +22,7 @@ import F80.AST as AST
         , IfStmtData
         , Program
         , Stmt(..)
+        , UnaryOp(..)
         , Value(..)
         , WaitForKeypressItem
         )
@@ -341,7 +342,7 @@ emitExpr ctx expr =
                     "ld a,"
                         ++ String.fromInt
                             (if b then
-                                1
+                                255
 
                              else
                                 0
@@ -351,8 +352,20 @@ emitExpr ctx expr =
         BinOp _ ->
             Debug.todo "emitExpr binop"
 
-        UnaryOp _ ->
-            Debug.todo "emitExpr unaryop"
+        UnaryOp data ->
+            emitExpr ("unaryop" :: ctx) data.expr
+                |> Output.add
+                    (Output.code
+                        [ i <|
+                            case data.op of
+                                UOp_Neg ->
+                                    "neg"
+
+                                UOp_Not ->
+                                    -- We're using `neg` for boolean negation too. It flips between 0 and 255.
+                                    "neg"
+                        ]
+                    )
 
         CallExpr _ ->
             Debug.todo "emitExpr call"

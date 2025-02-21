@@ -480,6 +480,31 @@ main() {
                                 }
                             ]
                         )
+        , Test.test "different whitespace" <|
+            \() ->
+                """
+main() {
+    if (true) { return }
+    ROM.clearScreen()
+}
+                """
+                    |> F80.Parser.parse
+                    |> Expect.equal
+                        (Ok
+                            [ FnDecl
+                                { name = "main"
+                                , params = []
+                                , body =
+                                    [ If
+                                        { cond = Bool True
+                                        , then_ = [ Return Nothing ]
+                                        , else_ = Nothing
+                                        }
+                                    , CallStmt { fn = "ROM.clearScreen", args = [] }
+                                    ]
+                                }
+                            ]
+                        )
         ]
 
 

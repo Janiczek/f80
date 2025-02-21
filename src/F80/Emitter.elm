@@ -8,7 +8,7 @@ Function return values are in register A.
 -}
 
 import Dict exposing (Dict)
-import F80.AST
+import F80.AST as AST
     exposing
         ( AssignData
         , BinOp(..)
@@ -56,7 +56,7 @@ emitFnDecl : List String -> FnDeclData -> Output
 emitFnDecl ctx fnData =
     let
         isMain =
-            fnData.name == Util.mainFnName
+            fnData.name == AST.mainFnName
 
         blockOutput =
             emitBlock { isMain = isMain } (fnData.name :: ctx) fnData.body
@@ -110,7 +110,7 @@ emitStmt isMain parentCtx ix stmt =
                 |> Output.add (Output.code [ i <| "jp " ++ label ])
 
         If ifData ->
-            emitIfStmt ifData
+            emitIfStmt isMain ctx ifData
 
         DefineConst defConst ->
             Debug.todo <| "emitStmt defineConst: " ++ Debug.toString defConst
@@ -143,14 +143,51 @@ emitReturn { isMain } maybeExpr =
                     |> Output.add (Output.code [ i "ret" ])
 
 
-emitIfStmt : IfStmtData -> Output
-emitIfStmt ifData =
+emitIfStmt : { isMain : Bool } -> List String -> IfStmtData -> Output
+emitIfStmt isMain ctx ifData =
+    let
+        ctxLabel =
+            Util.ctxLabel ctx
+
+        labelPrefix =
+            "_if_" ++ ctxLabel ++ "_"
+
+        endLabel =
+            labelPrefix ++ "end"
+    in
     case ifData.else_ of
         Nothing ->
-            Debug.todo "emitIf withoutElse"
+            emitExpr ifData.cond
+                |> Output.add
+                    (Output.code
+                        [ i "cp a"
+                        , i <| "jz " ++ endLabel
+                        ]
+                    )
+                |> Output.add (emitBlock isMain ("then" :: ctx) ifData.then_)
+                |> Output.add (Output.code [ l endLabel ])
 
         Just else_ ->
-            Debug.todo "emitIf withElse"
+            let
+                elseLabel =
+                    labelPrefix ++ "else"
+            in
+            emitExpr ifData.cond
+                |> Output.add
+                    (Output.code
+                        [ i "cp a"
+                        , i <| "jz " ++ elseLabel
+                        ]
+                    )
+                |> Output.add (emitBlock isMain ("then" :: ctx) ifData.then_)
+                |> Output.add
+                    (Output.code
+                        [ i <| "jp " ++ endLabel
+                        , l elseLabel
+                        ]
+                    )
+                |> Output.add (emitBlock isMain ("else" :: ctx) else_)
+                |> Output.add (Output.code [ l endLabel ])
 
 
 emitBlock : { isMain : Bool } -> List String -> Block -> Output
@@ -275,11 +312,38 @@ emitExprToHL expr =
             Debug.todo <| "emit expr to HL: " ++ Debug.toString expr
 
 
+{-| Loads the value into the register A.
+-}
 emitExpr : Expr -> Output
 emitExpr expr =
     case expr of
         Int n ->
             Output.code [ i <| "ld a," ++ String.fromInt n ]
 
-        _ ->
-            Debug.todo "emitExpr"
+        Var _ ->
+            Debug.todo "emitExpr var"
+
+        String _ ->
+            Debug.todo "emitExpr string"
+
+        Bool b ->
+            Output.code
+                [ i <|
+                    "ld a,"
+                        ++ String.fromInt
+                            (if b then
+                                1
+
+                             else
+                                0
+                            )
+                ]
+
+        BinOp _ ->
+            Debug.todo "emitExpr binop"
+
+        CallExpr _ ->
+            Debug.todo "emitExpr call"
+
+        IfExpr _ ->
+            Debug.todo "emitExpr if"

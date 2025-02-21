@@ -11,6 +11,7 @@ module F80.AST exposing
     , BinOp(..), IfExprData, BinOpData
     , Value(..)
     , KeyPattern(..), keyPatternName
+    , mainFnName
     )
 
 {-|
@@ -29,6 +30,7 @@ module F80.AST exposing
 @docs BinOp, IfExprData, BinOpData
 @docs Value
 @docs KeyPattern, keyPatternName
+@docs mainFnName
 
 -}
 
@@ -375,3 +377,8 @@ walkExpr f acc expr =
 
         String _ ->
             ( newAcc, newExpr )
+
+
+mainFnName : String
+mainFnName =
+    "main"

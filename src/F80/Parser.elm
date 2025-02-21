@@ -153,7 +153,8 @@ returnStmt =
         |. Parser.symbol "return"
         |= Parser.oneOf
             [ Parser.succeed Just
-                |. spacesOnly
+                -- in `if (true) { return }` the space after return would screw us up without the backtrackable
+                |. Parser.backtrackable spacesOnly
                 |= Parser.lazy (\() -> expr)
             , Parser.succeed Nothing
             ]

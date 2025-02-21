@@ -37,6 +37,7 @@ suite : Test
 suite =
     Test.describe "F80.Lower.HoistStringLiterals.hoist"
         [ stmts
+        , exprs
         ]
 
 
@@ -256,6 +257,63 @@ main() {
             x = _string_0_1
         }
     }
+}
+            """
+        ]
+
+
+exprs : Test
+exprs =
+    Test.describe "exprs"
+        [ testLower
+            """
+main() {
+    const x = "hello" + "world"
+}
+            """
+            """
+const _string_0_0 = "hello"
+const _string_0_1 = "world"
+main() {
+    const x = _string_0_0 + _string_0_1
+}
+            """
+        , testLower
+            """
+main() {
+    const x = if (true) "hello" else "world"
+}
+            """
+            """
+const _string_0_0 = "hello"
+const _string_0_1 = "world"
+main() {
+    const x = if (true) _string_0_0 else _string_0_1
+}
+            """
+        , testLower
+            """
+main() {
+    const x = foo("abc")
+}
+            """
+            """
+const _string_0_0 = "abc"
+main() {
+    const x = foo(_string_0_0)
+}
+            """
+        , testLower
+            """
+main() {
+    const x = foo("abc",1,"def")
+}
+            """
+            """
+const _string_0_0 = "abc"
+const _string_0_1 = "def"
+main() {
+    const x = foo(_string_0_0, 1, _string_0_1)
 }
             """
         ]

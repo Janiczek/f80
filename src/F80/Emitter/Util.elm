@@ -1,6 +1,6 @@
 module F80.Emitter.Util exposing
     ( i, l, ctxLabel
-    , mainEpilogue, mainPrologue, mainFnName
+    , mainEpilogue, mainPrologue
     , emitBinOp
     , globalStringLengthLabel
     )
@@ -8,7 +8,7 @@ module F80.Emitter.Util exposing
 {-|
 
 @docs i, l, ctxLabel
-@docs mainEpilogue, mainPrologue, mainFnName
+@docs mainEpilogue, mainPrologue
 @docs emitBinOp
 @docs globalStringLengthLabel
 
@@ -66,8 +66,3 @@ emitBinOp op =
 
         BOp_Gt ->
             ">"
-
-
-mainFnName : String
-mainFnName =
-    "main"

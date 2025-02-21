@@ -371,9 +371,9 @@ org 0x8000
 main:
     ld a,1
     cp a
-    jz _if_0_end
+    jz _if_decl_0_main_0_end
     call ROM_CLS
-_if_0_end:
+_if_decl_0_main_0_end:
 _end:
     jp _end
             """
@@ -394,12 +394,12 @@ org 0x8000
 main:
     ld a,1
     cp a
-    jz _if_0_else
+    jz _if_decl_0_main_0_else
     call ROM_CLS
-    jp _if_0_end
-_if_0_else:
+    jp _if_decl_0_main_0_end
+_if_decl_0_main_0_else:
     call ROM_CLS
-_if_0_end:
+_if_decl_0_main_0_end:
 _end:
     jp _end
             """
@@ -421,7 +421,7 @@ main() {
         ROM.clearScreen()
     }
 }
-        """
+            """
             """
 ROM_CLS EQU 0x0daf
 org 0x8000
@@ -436,7 +436,7 @@ _end:
 fn:
     ld a,1
     ret
-        """
+            """
         ]
 
 
@@ -634,7 +634,7 @@ exprs =
     Test.describe "exprs"
         [ ints
         , Test.todo "strings"
-        , Test.todo "bools"
+        , bools
         , Test.todo "vars"
         , Test.todo "binops"
         , Test.todo "calls"
@@ -660,6 +660,63 @@ _end:
     jp _end
 fn:
     ld a,1
+    ret
+            """
+        , testEmit
+            """
+fn() {
+    return 42
+}
+main() {
+}
+            """
+            """
+org 0x8000
+main:
+_end:
+    jp _end
+fn:
+    ld a,42
+    ret
+            """
+        ]
+
+
+bools : Test
+bools =
+    Test.describe "bool"
+        [ testEmit
+            """
+fn() {
+    return true
+}
+main() {
+}
+            """
+            """
+org 0x8000
+main:
+_end:
+    jp _end
+fn:
+    ld a,1
+    ret
+            """
+        , testEmit
+            """
+fn() {
+    return false
+}
+main() {
+}
+            """
+            """
+org 0x8000
+main:
+_end:
+    jp _end
+fn:
+    ld a,0
     ret
             """
         ]

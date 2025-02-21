@@ -1,7 +1,9 @@
 module F80.Lower.AddImplicitReturns exposing (add)
 
-import F80.AST exposing (Decl(..), Expr(..), Program, Stmt(..))
-import F80.Emitter.Util as Util
+{-| We don't add implicit returns to the main function, because it has the _end: jp _end loop right after.
+-}
+
+import F80.AST as AST exposing (Decl(..), Expr(..), Program, Stmt(..))
 import List.Extra
 
 
@@ -15,7 +17,7 @@ add program =
                         decl
 
                     FnDecl fn ->
-                        if fn.name == Util.mainFnName then
+                        if fn.name == AST.mainFnName then
                             decl
 
                         else

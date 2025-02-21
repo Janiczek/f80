@@ -169,12 +169,12 @@ waitForKeypressItemToString item =
 
 blockToString : Block -> String
 blockToString body =
-    "{\n"
-        ++ (body
-                |> List.map (stmtToString >> indent)
-                |> String.join "\n"
-           )
-        ++ "\n}"
+    [ [ "{" ]
+    , List.map (stmtToString >> indent) body
+    , [ "}" ]
+    ]
+        |> List.concat
+        |> String.join "\n"
 
 
 keyPatternToString : KeyPattern -> String

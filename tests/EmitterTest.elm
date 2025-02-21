@@ -677,7 +677,7 @@ exprs =
         , Test.todo "strings"
         , bools
         , Test.todo "vars"
-        , Test.todo "binops"
+        , binOps
         , unaryOps
         , Test.todo "calls"
         , ifExprs
@@ -713,6 +713,96 @@ org 0x8000
 main:
     ld a,255
     neg
+    jp _end
+_end:
+    jp _end
+            """
+        ]
+
+
+binOps : Test
+binOps =
+    Test.describe "binary ops"
+        [ testEmit
+            """
+main() {
+    return 10 + 20
+}
+            """
+            """
+org 0x8000
+main:
+    ld a,20
+    push af
+    ld a,10
+    pop bc
+    add b
+    jp _end
+_end:
+    jp _end
+            """
+        , testEmit
+            """
+main() {
+    return 10 - 20
+}
+            """
+            """
+org 0x8000
+main:
+    ld a,20
+    push af
+    ld a,10
+    pop bc
+    sub b
+    jp _end
+_end:
+    jp _end
+            """
+        , testEmit
+            """
+main() {
+    return 10 > 20
+}
+            """
+            """
+org 0x8000
+main:
+    ld a,10
+    push af
+    ld a,20
+    pop bc
+    cp b
+    jp nc,_gt_decl_0_main_0_return_onGT
+    ld a,0
+    jp _gt_decl_0_main_0_return_end
+_gt_decl_0_main_0_return_onGT:
+    ld a,255
+_gt_decl_0_main_0_return_end:
+    jp _end
+_end:
+    jp _end
+            """
+        , testEmit
+            """
+main() {
+    return 10 < 20
+}
+            """
+            """
+org 0x8000
+main:
+    ld a,20
+    push af
+    ld a,10
+    pop bc
+    cp b
+    jp nc,_lt_decl_0_main_0_return_onLT
+    ld a,0
+    jp _lt_decl_0_main_0_return_end
+_lt_decl_0_main_0_return_onLT:
+    ld a,255
+_lt_decl_0_main_0_return_end:
     jp _end
 _end:
     jp _end

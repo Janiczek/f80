@@ -349,8 +349,105 @@ emitExpr ctx expr =
                             )
                 ]
 
-        BinOp _ ->
-            Debug.todo "emitExpr binop"
+        BinOp data ->
+            case data.op of
+                BOp_Add ->
+                    -- a = R
+                    emitExpr ("right" :: "binop" :: ctx) data.right
+                        |> Output.add (Output.code [ i "push af" ])
+                        |> Output.add
+                            -- a = L
+                            (emitExpr ("left" :: "binop" :: ctx) data.left)
+                        |> Output.add
+                            (Output.code
+                                [ i "pop bc" -- b = R
+                                , i "add b" -- a = L + R
+                                ]
+                            )
+
+                BOp_Sub ->
+                    -- a = R
+                    emitExpr ("right" :: "binop" :: ctx) data.right
+                        |> Output.add (Output.code [ i "push af" ])
+                        |> Output.add
+                            -- a = L
+                            (emitExpr ("left" :: "binop" :: ctx) data.left)
+                        |> Output.add
+                            (Output.code
+                                [ i "pop bc" -- b = R
+                                , i "sub b" -- a = L - R
+                                ]
+                            )
+
+                BOp_Gt ->
+                    let
+                        ctxLabel =
+                            Util.ctxLabel ctx
+
+                        prefix =
+                            "_gt_" ++ ctxLabel ++ "_"
+
+                        endLabel =
+                            prefix ++ "end"
+
+                        onGTLabel =
+                            prefix ++ "onGT"
+                    in
+                    -- a = L
+                    emitExpr ("left" :: "binop" :: ctx) data.left
+                        |> Output.add (Output.code [ i "push af" ])
+                        |> Output.add
+                            -- a = R
+                            (emitExpr ("right" :: "binop" :: ctx) data.right)
+                        |> Output.add
+                            (Output.code
+                                [ i "pop bc" -- b = L
+                                , i "cp b" -- carry = L <= R
+                                , i <| "jp nc," ++ onGTLabel
+
+                                -- L <= R
+                                , i "ld a,0"
+                                , i <| "jp " ++ endLabel
+                                , l onGTLabel -- L > R
+                                , i "ld a,255"
+                                , l endLabel
+                                ]
+                            )
+
+                BOp_Lt ->
+                    let
+                        ctxLabel =
+                            Util.ctxLabel ctx
+
+                        prefix =
+                            "_lt_" ++ ctxLabel ++ "_"
+
+                        endLabel =
+                            prefix ++ "end"
+
+                        onLTLabel =
+                            prefix ++ "onLT"
+                    in
+                    -- a = R
+                    emitExpr ("right" :: "binop" :: ctx) data.right
+                        |> Output.add (Output.code [ i "push af" ])
+                        |> Output.add
+                            -- a = L
+                            (emitExpr ("left" :: "binop" :: ctx) data.left)
+                        |> Output.add
+                            (Output.code
+                                [ i "pop bc" -- b = L
+                                , i "cp b" -- carry = L >= R
+                                , i <| "jp nc," ++ onLTLabel
+
+                                -- L >= R
+                                , i "ld a,0"
+                                , i <| "jp " ++ endLabel
+                                , l onLTLabel -- L < R
+                                , i "ld a,255"
+                                , l endLabel
+                                ]
+                            )
 
         UnaryOp data ->
             emitExpr ("unaryop" :: ctx) data.expr

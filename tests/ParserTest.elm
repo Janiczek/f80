@@ -1022,7 +1022,7 @@ main() {
 ifExprTests : Test
 ifExprTests =
     Test.describe "IfExpr"
-        [ Test.test "parses if expressions" <|
+        [ Test.test "inside let" <|
             \_ ->
                 "main() { let x = if (a > b) 1 else 2 }"
                     |> F80.Parser.parse
@@ -1041,6 +1041,31 @@ ifExprTests =
                                                 , else_ = Int 2
                                                 }
                                         }
+                                    ]
+                                }
+                            ]
+                        )
+        , Test.test "inside return" <|
+            \_ ->
+                """
+main() {
+    return (if (true) 5 else 6)
+}
+                """
+                    |> F80.Parser.parse
+                    |> Expect.equal
+                        (Ok
+                            [ FnDecl
+                                { name = "main"
+                                , params = []
+                                , body =
+                                    [ Return <|
+                                        Just <|
+                                            IfExpr
+                                                { cond = Bool True
+                                                , then_ = Int 5
+                                                , else_ = Int 6
+                                                }
                                     ]
                                 }
                             ]

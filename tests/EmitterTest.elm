@@ -97,6 +97,7 @@ main() {
             """
 org 0x8000
 main:
+    ld a,1
     jp _end
 _end:
     jp _end
@@ -371,9 +372,9 @@ org 0x8000
 main:
     ld a,1
     cp a
-    jz _if_decl_0_main_0_end
+    jz _ifstmt_decl_0_main_0_end
     call ROM_CLS
-_if_decl_0_main_0_end:
+_ifstmt_decl_0_main_0_end:
 _end:
     jp _end
             """
@@ -394,12 +395,12 @@ org 0x8000
 main:
     ld a,1
     cp a
-    jz _if_decl_0_main_0_else
+    jz _ifstmt_decl_0_main_0_else
     call ROM_CLS
-    jp _if_decl_0_main_0_end
-_if_decl_0_main_0_else:
+    jp _ifstmt_decl_0_main_0_end
+_ifstmt_decl_0_main_0_else:
     call ROM_CLS
-_if_decl_0_main_0_end:
+_ifstmt_decl_0_main_0_end:
 _end:
     jp _end
             """
@@ -428,9 +429,9 @@ org 0x8000
 main:
     call fn
     cp a
-    jz _if_0_end
+    jz _ifstmt_decl_0_main_0_end
     call ROM_CLS
-_if_0_end:
+_ifstmt_decl_0_main_0_end:
 _end:
     jp _end
 fn:
@@ -638,7 +639,7 @@ exprs =
         , Test.todo "vars"
         , Test.todo "binops"
         , Test.todo "calls"
-        , Test.todo "ifExprs"
+        , ifExprs
         ]
 
 
@@ -717,6 +718,89 @@ _end:
     jp _end
 fn:
     ld a,0
+    ret
+            """
+        ]
+
+
+ifExprs : Test
+ifExprs =
+    Test.describe "if exprs"
+        [ testEmit
+            """
+main() {
+    return (if (true) 5 else 6)
+}
+            """
+            -- TODO we can optimize this away later, for now this is translated verbatim
+            """
+org 0x8000
+main:
+    ld a,1
+    cp a
+    jz _ifexpr_decl_0_main_0_return_else
+    ld a,5
+    jp _ifexpr_decl_0_main_0_return_end
+_ifexpr_decl_0_main_0_return_else:
+    ld a,6
+_ifexpr_decl_0_main_0_return_end:
+    jp _end
+_end:
+    jp _end
+            """
+        , testEmit
+            """
+main() {}
+fn() {
+    return (if (true) 5 else 6)
+}
+            """
+            -- TODO we can optimize this away later, for now this is translated verbatim
+            """
+org 0x8000
+main:
+_end:
+    jp _end
+fn:
+    ld a,1
+    cp a
+    jz _ifexpr_decl_1_fn_0_return_else
+    ld a,5
+    jp _ifexpr_decl_1_fn_0_return_end
+_ifexpr_decl_1_fn_0_return_else:
+    ld a,6
+_ifexpr_decl_1_fn_0_return_end:
+    ret
+            """
+        , testEmit
+            """
+main() {}
+fn() {
+    return (if (true) 0 else (if (false) 1 else 2))
+}
+            """
+            -- TODO we can optimize this away later, for now this is translated verbatim
+            """
+org 0x8000
+main:
+_end:
+    jp _end
+fn:
+    ld a,1
+    cp a
+    jz _ifexpr_decl_1_fn_0_return_else
+    ld a,0
+    jp _ifexpr_decl_1_fn_0_return_end
+_ifexpr_decl_1_fn_0_return_else:
+    ld a,0
+    cp a
+    jz _ifexpr_decl_1_fn_0_return_else_else
+    ld a,1
+    jp _ifexpr_decl_1_fn_0_return_else_end
+_ifexpr_decl_1_fn_0_return_else_else:
+    ld a,2
+_ifexpr_decl_1_fn_0_return_else_end:
+_ifexpr_decl_1_fn_0_return_end:
     ret
             """
         ]

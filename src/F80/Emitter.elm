@@ -18,6 +18,7 @@ import F80.AST as AST
         , Expr(..)
         , FnDeclData
         , GlobalDeclData
+        , IfExprData
         , IfStmtData
         , Program
         , Stmt(..)
@@ -125,22 +126,30 @@ emitStmt isMain parentCtx ix stmt =
             emitCall callData
 
         Return maybeExpr ->
-            emitReturn isMain maybeExpr
+            emitReturn isMain ctx maybeExpr
 
 
-emitReturn : { isMain : Bool } -> Maybe Expr -> Output
-emitReturn { isMain } maybeExpr =
-    if isMain then
-        Output.code [ i "jp _end" ]
+emitReturn : { isMain : Bool } -> List String -> Maybe Expr -> Output
+emitReturn { isMain } ctx maybeExpr =
+    let
+        return =
+            if isMain then
+                Output.code [ i "jp _end" ]
 
-    else
-        case maybeExpr of
-            Nothing ->
+            else
                 Output.code [ i "ret" ]
+    in
+    case maybeExpr of
+        Nothing ->
+            return
 
-            Just expr ->
-                emitExpr expr
-                    |> Output.add (Output.code [ i "ret" ])
+        Just expr ->
+            {- We emit the code of the expr, even if the main() return ultimately
+               throws it away. That's because we can have side effects in our
+               expressions!
+            -}
+            emitExpr ("return" :: ctx) expr
+                |> Output.add return
 
 
 emitIfStmt : { isMain : Bool } -> List String -> IfStmtData -> Output
@@ -150,14 +159,14 @@ emitIfStmt isMain ctx ifData =
             Util.ctxLabel ctx
 
         labelPrefix =
-            "_if_" ++ ctxLabel ++ "_"
+            "_ifstmt_" ++ ctxLabel ++ "_"
 
         endLabel =
             labelPrefix ++ "end"
     in
     case ifData.else_ of
         Nothing ->
-            emitExpr ifData.cond
+            emitExpr ("cond" :: ctx) ifData.cond
                 |> Output.add
                     (Output.code
                         [ i "cp a"
@@ -172,7 +181,7 @@ emitIfStmt isMain ctx ifData =
                 elseLabel =
                     labelPrefix ++ "else"
             in
-            emitExpr ifData.cond
+            emitExpr ("cond" :: ctx) ifData.cond
                 |> Output.add
                     (Output.code
                         [ i "cp a"
@@ -314,8 +323,8 @@ emitExprToHL expr =
 
 {-| Loads the value into the register A.
 -}
-emitExpr : Expr -> Output
-emitExpr expr =
+emitExpr : List String -> Expr -> Output
+emitExpr ctx expr =
     case expr of
         Int n ->
             Output.code [ i <| "ld a," ++ String.fromInt n ]
@@ -345,5 +354,41 @@ emitExpr expr =
         CallExpr _ ->
             Debug.todo "emitExpr call"
 
-        IfExpr _ ->
-            Debug.todo "emitExpr if"
+        IfExpr data ->
+            emitIfExpr ctx data
+
+
+{-| The result goes to the A register.
+Otherwise this is pretty similar to the else-ful part of emitIfStmt
+-}
+emitIfExpr : List String -> IfExprData -> Output
+emitIfExpr ctx data =
+    let
+        ctxLabel =
+            Util.ctxLabel ctx
+
+        labelPrefix =
+            "_ifexpr_" ++ ctxLabel ++ "_"
+
+        endLabel =
+            labelPrefix ++ "end"
+
+        elseLabel =
+            labelPrefix ++ "else"
+    in
+    emitExpr ("cond" :: ctx) data.cond
+        |> Output.add
+            (Output.code
+                [ i "cp a"
+                , i <| "jz " ++ elseLabel
+                ]
+            )
+        |> Output.add (emitExpr ("then" :: ctx) data.then_)
+        |> Output.add
+            (Output.code
+                [ i <| "jp " ++ endLabel
+                , l elseLabel
+                ]
+            )
+        |> Output.add (emitExpr ("else" :: ctx) data.else_)
+        |> Output.add (Output.code [ l endLabel ])

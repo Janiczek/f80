@@ -263,6 +263,7 @@ parenthesizedValue : Pratt.Config Value -> Parser Value
 parenthesizedValue config =
     Parser.succeed identity
         |. Parser.symbol "("
+        -- TODO newlines too?
         |. spacesOnly
         |= Pratt.subExpression 0 config
         |. spacesOnly

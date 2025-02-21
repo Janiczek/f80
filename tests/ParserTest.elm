@@ -9,6 +9,7 @@ import F80.AST
         , Expr(..)
         , KeyPattern(..)
         , Stmt(..)
+        , UnaryOp(..)
         , Value(..)
         )
 import F80.Parser
@@ -90,27 +91,27 @@ declarationTests =
 globalDeclTests : Test
 globalDeclTests =
     Test.describe "GlobalDecl"
-        [ Test.test "parses integer global" <|
+        [ Test.test "int" <|
             \() ->
                 "const x = 42"
                     |> F80.Parser.parse
                     |> Expect.equal (Ok [ GlobalDecl { name = "x", value = VInt 42 } ])
-        , Test.test "parses string global" <|
+        , Test.test "string" <|
             \() ->
                 "const y = \"hello\""
                     |> F80.Parser.parse
                     |> Expect.equal (Ok [ GlobalDecl { name = "y", value = VString "hello" } ])
-        , Test.test "parses bool true global" <|
+        , Test.test "bool true" <|
             \() ->
                 "const b = true"
                     |> F80.Parser.parse
                     |> Expect.equal (Ok [ GlobalDecl { name = "b", value = VBool True } ])
-        , Test.test "parses bool false global" <|
+        , Test.test "bool false" <|
             \() ->
                 "const b = false"
                     |> F80.Parser.parse
                     |> Expect.equal (Ok [ GlobalDecl { name = "b", value = VBool False } ])
-        , Test.test "parses binary operation global" <|
+        , Test.test "binop +" <|
             \() ->
                 "const z = x + 1"
                     |> F80.Parser.parse
@@ -127,7 +128,90 @@ globalDeclTests =
                                 }
                             ]
                         )
-        , Test.test "parses string length operation global" <|
+        , Test.test "binop -" <|
+            \() ->
+                "const z = x - 1"
+                    |> F80.Parser.parse
+                    |> Expect.equal
+                        (Ok
+                            [ GlobalDecl
+                                { name = "z"
+                                , value =
+                                    VBinOp
+                                        { op = BOp_Sub
+                                        , left = VGlobal "x"
+                                        , right = VInt 1
+                                        }
+                                }
+                            ]
+                        )
+        , Test.test "binop <" <|
+            \() ->
+                "const z = x < 1"
+                    |> F80.Parser.parse
+                    |> Expect.equal
+                        (Ok
+                            [ GlobalDecl
+                                { name = "z"
+                                , value =
+                                    VBinOp
+                                        { op = BOp_Lt
+                                        , left = VGlobal "x"
+                                        , right = VInt 1
+                                        }
+                                }
+                            ]
+                        )
+        , Test.test "binop >" <|
+            \() ->
+                "const z = x > 1"
+                    |> F80.Parser.parse
+                    |> Expect.equal
+                        (Ok
+                            [ GlobalDecl
+                                { name = "z"
+                                , value =
+                                    VBinOp
+                                        { op = BOp_Gt
+                                        , left = VGlobal "x"
+                                        , right = VInt 1
+                                        }
+                                }
+                            ]
+                        )
+        , Test.test "unary op -" <|
+            \() ->
+                "const z = -x"
+                    |> F80.Parser.parse
+                    |> Expect.equal
+                        (Ok
+                            [ GlobalDecl
+                                { name = "z"
+                                , value =
+                                    VUnaryOp
+                                        { op = UOp_Neg
+                                        , expr = VGlobal "x"
+                                        }
+                                }
+                            ]
+                        )
+        , Test.test "unary op !" <|
+            \() ->
+                "const z = !x"
+                    |> F80.Parser.parse
+                    |> Expect.equal
+                        (Ok
+                            [ GlobalDecl
+                                { name = "z"
+                                , value =
+                                    VUnaryOp
+                                        { op = UOp_Not
+                                        , expr = VGlobal "x"
+                                        }
+                                }
+                            ]
+                        )
+        , Test.test "String.length" <|
             \() ->
                 "const w = String.length(y) - 2"
                     |> F80.Parser.parse
@@ -144,7 +228,7 @@ globalDeclTests =
                                 }
                             ]
                         )
-        , Test.test "parses bytes global" <|
+        , Test.test "bytes" <|
             \() ->
                 "const b = [1,2,3]"
                     |> F80.Parser.parse
@@ -161,7 +245,7 @@ fnDeclTests =
 main() {
     foo(42, "hello")
 }
-"""
+                """
                     |> F80.Parser.parse
                     |> Expect.equal
                         (Ok
@@ -183,7 +267,7 @@ main() {
 foo(x, y) {
     bar(x, y)
 }
-"""
+                """
                     |> F80.Parser.parse
                     |> Expect.equal
                         (Ok
@@ -229,7 +313,7 @@ main() {
         Key.K -> { x -= 1 }
     }
 }
-"""
+                """
                     |> F80.Parser.parse
                     |> Expect.equal
                         (Ok
@@ -256,7 +340,7 @@ main() {
     wait for keypress {
     }
 }
-"""
+                """
                     |> F80.Parser.parse
                     |> Expect.equal
                         (Ok
@@ -274,7 +358,7 @@ main() {
 main() {
     wait for keypress {}
 }
-"""
+                """
                     |> F80.Parser.parse
                     |> Expect.equal
                         (Ok
@@ -294,7 +378,7 @@ main() {
       Key.J -> { if (counter > 0) { counter -= 1 } }
     }
 }
-"""
+                """
                     |> F80.Parser.parse
                     |> Expect.equal
                         (Ok
@@ -765,6 +849,7 @@ expressionTests =
         , stringTests
         , boolTests
         , binOpTests
+        , unaryOpTests
         , callExprTests
         , ifExprTests
         ]
@@ -919,6 +1004,39 @@ binOpTests =
             ]
 
 
+unaryOpTests : Test
+unaryOpTests =
+    let
+        testUnaryOp : String -> UnaryOp -> Test
+        testUnaryOp op unaryOp =
+            Test.test ("parses unary operator " ++ op) <|
+                \_ ->
+                    "main() { let x = "
+                        ++ op
+                        ++ "2 }"
+                        |> F80.Parser.parse
+                        |> Expect.equal
+                            (Ok
+                                [ FnDecl
+                                    { name = "main"
+                                    , params = []
+                                    , body =
+                                        [ DefineLet
+                                            { name = "x"
+                                            , value = UnaryOp { op = unaryOp, expr = Int 2 }
+                                            }
+                                        ]
+                                    }
+                                ]
+                            )
+    in
+    Test.describe "UnaryOp" <|
+        List.map (\( op, unaryOp ) -> testUnaryOp op unaryOp)
+            [ ( "-", UOp_Neg )
+            , ( "!", UOp_Not )
+            ]
+
+
 callExprTests : Test
 callExprTests =
     Test.describe "CallExpr"
@@ -973,6 +1091,34 @@ main() {
     let x = foo(
         1,
         2
+    ) 
+}"""
+                    |> F80.Parser.parse
+                    |> Expect.equal
+                        (Ok
+                            [ FnDecl
+                                { name = "main"
+                                , params = []
+                                , body =
+                                    [ DefineLet
+                                        { name = "x"
+                                        , value =
+                                            CallExpr
+                                                { fn = "foo"
+                                                , args = [ Int 1, Int 2 ]
+                                                }
+                                        }
+                                    ]
+                                }
+                            ]
+                        )
+        , Test.test "trailing comma and newlines inside the arg list" <|
+            \_ ->
+                """
+main() { 
+    let x = foo(
+        1,
+        2,
     ) 
 }"""
                     |> F80.Parser.parse

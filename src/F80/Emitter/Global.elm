@@ -21,6 +21,9 @@ emit globalData =
         VBinOp _ ->
             default ()
 
+        VUnaryOp _ ->
+            default ()
+
         VBool _ ->
             default ()
 
@@ -71,6 +74,11 @@ emitValue val =
                 ++ F80.Emitter.Util.emitBinOp binOpData.op
                 ++ " "
                 ++ emitValue binOpData.right
+
+        VUnaryOp unaryOpData ->
+            F80.Emitter.Util.emitUnaryOp unaryOpData.op
+                ++ " "
+                ++ emitValue unaryOpData.expr
 
         VStringLength val_ ->
             case val_ of

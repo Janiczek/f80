@@ -351,6 +351,9 @@ emitExpr ctx expr =
         BinOp _ ->
             Debug.todo "emitExpr binop"
 
+        UnaryOp _ ->
+            Debug.todo "emitExpr unaryop"
+
         CallExpr _ ->
             Debug.todo "emitExpr call"
 

@@ -8,7 +8,9 @@ module F80.AST exposing
     , WaitForKeypressItem, CallData, IfStmtData, AssignData
     , DefineConstData, DefineLetData
     , Expr(..), walkExpr
-    , BinOp(..), IfExprData, BinOpData
+    , IfExprData
+    , BinOp(..), BinOpData
+    , UnaryOp(..), UnaryOpData
     , Value(..)
     , KeyPattern(..), keyPatternName
     , mainFnName
@@ -27,7 +29,9 @@ module F80.AST exposing
 @docs WaitForKeypressItem, CallData, IfStmtData, AssignData
 @docs DefineConstData, DefineLetData
 @docs Expr, walkExpr
-@docs BinOp, IfExprData, BinOpData
+@docs IfExprData
+@docs BinOp, BinOpData
+@docs UnaryOp, UnaryOpData
 @docs Value
 @docs KeyPattern, keyPatternName
 @docs mainFnName
@@ -57,6 +61,7 @@ type Value
     | VBool Bool
     | VBytes (List Int)
     | VBinOp VBinOpData
+    | VUnaryOp VUnaryOpData
     | VStringLength Value
 
 
@@ -64,6 +69,12 @@ type alias VBinOpData =
     { left : Value
     , op : BinOp
     , right : Value
+    }
+
+
+type alias VUnaryOpData =
+    { op : UnaryOp
+    , expr : Value
     }
 
 
@@ -137,6 +148,7 @@ type Expr
     | String String
     | Bool Bool
     | BinOp BinOpData
+    | UnaryOp UnaryOpData
     | CallExpr CallData
     | IfExpr IfExprData
 
@@ -145,6 +157,12 @@ type alias BinOpData =
     { left : Expr
     , op : BinOp
     , right : Expr
+    }
+
+
+type alias UnaryOpData =
+    { op : UnaryOp
+    , expr : Expr
     }
 
 
@@ -160,6 +178,11 @@ type BinOp
     | BOp_Sub
     | BOp_Gt
     | BOp_Lt
+
+
+type UnaryOp
+    = UOp_Neg
+    | UOp_Not
 
 
 type KeyPattern
@@ -332,6 +355,13 @@ walkExpr f acc expr =
             ( accRight
             , BinOp { data | left = newLeft, right = newRight }
             )
+
+        UnaryOp data ->
+            let
+                ( accExpr, newArg ) =
+                    walkExpr f newAcc data.expr
+            in
+            ( accExpr, UnaryOp { data | expr = newArg } )
 
         IfExpr data ->
             let

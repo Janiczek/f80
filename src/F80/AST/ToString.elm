@@ -9,6 +9,7 @@ import F80.AST
         , KeyPattern(..)
         , Program
         , Stmt(..)
+        , UnaryOp(..)
         , Value(..)
         , WaitForKeypressItem
         )
@@ -75,6 +76,12 @@ valueToString value =
                 ++ " "
                 ++ valueToString data.right
 
+        VUnaryOp data ->
+            -- Assuming they're all prefix
+            unaryOpToString data.op
+                ++ " "
+                ++ valueToString data.expr
+
         VStringLength val ->
             "String.length(" ++ valueToString val ++ ")"
 
@@ -93,6 +100,16 @@ binOpToString op =
 
         BOp_Lt ->
             "<"
+
+
+unaryOpToString : UnaryOp -> String
+unaryOpToString op =
+    case op of
+        UOp_Neg ->
+            "-"
+
+        UOp_Not ->
+            "!"
 
 
 stmtToString : Stmt -> String
@@ -213,6 +230,12 @@ exprToString expr =
                 ++ binOpToString data.op
                 ++ " "
                 ++ exprToString data.right
+
+        UnaryOp data ->
+            -- Assuming they're all prefix
+            unaryOpToString data.op
+                ++ " "
+                ++ exprToString data.expr
 
         CallExpr data ->
             data.fn

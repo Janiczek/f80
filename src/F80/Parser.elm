@@ -1,7 +1,7 @@
 module F80.Parser exposing (Error, parse)
 
 import Char
-import F80.AST exposing (BinOp(..), Decl, Expr(..), Value(..))
+import F80.AST exposing (BinOp(..), Decl, Expr(..), UnaryOp(..), Value(..))
 import Parser exposing ((|.), (|=), Parser)
 import Pratt
 import Set exposing (Set)
@@ -248,6 +248,8 @@ value =
             , Pratt.literal boolValue
             , Pratt.literal bytesValue
             , Pratt.literal globalValue
+            , Pratt.prefix 1 (Parser.symbol "-") (unaryOpValue UOp_Neg)
+            , Pratt.prefix 1 (Parser.symbol "!") (unaryOpValue UOp_Not)
             ]
         , andThenOneOf =
             [ Pratt.infixLeft 1 (Parser.symbol "+") (binOpValue BOp_Add)
@@ -338,6 +340,14 @@ binOpValue op left right =
         }
 
 
+unaryOpValue : UnaryOp -> Value -> Value
+unaryOpValue op expr_ =
+    F80.AST.VUnaryOp
+        { op = op
+        , expr = expr_
+        }
+
+
 expr : Parser Expr
 expr =
     Pratt.expression
@@ -348,6 +358,8 @@ expr =
             , Pratt.literal stringExpr
             , Pratt.literal boolExpr
             , Pratt.literal varOrCallExpr
+            , Pratt.prefix 1 (Parser.symbol "-") (unaryOpExpr UOp_Neg)
+            , Pratt.prefix 1 (Parser.symbol "!") (unaryOpExpr UOp_Not)
             ]
         , andThenOneOf =
             [ Pratt.infixLeft 1 (Parser.symbol "+") (binOpExpr BOp_Add)
@@ -431,6 +443,14 @@ binOpExpr op left right =
         { op = op
         , left = left
         , right = right
+        }
+
+
+unaryOpExpr : UnaryOp -> Expr -> Expr
+unaryOpExpr op expr_ =
+    F80.AST.UnaryOp
+        { op = op
+        , expr = expr_
         }
 
 

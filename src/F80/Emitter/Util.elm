@@ -1,7 +1,7 @@
 module F80.Emitter.Util exposing
     ( i, l, ctxLabel
     , mainEpilogue, mainPrologue
-    , emitBinOp
+    , emitBinOp, emitUnaryOp
     , globalStringLengthLabel
     )
 
@@ -9,12 +9,12 @@ module F80.Emitter.Util exposing
 
 @docs i, l, ctxLabel
 @docs mainEpilogue, mainPrologue
-@docs emitBinOp
+@docs emitBinOp, emitUnaryOp
 @docs globalStringLengthLabel
 
 -}
 
-import F80.AST exposing (BinOp(..))
+import F80.AST exposing (BinOp(..), UnaryOp(..))
 
 
 l : String -> String
@@ -66,3 +66,13 @@ emitBinOp op =
 
         BOp_Gt ->
             ">"
+
+
+emitUnaryOp : UnaryOp -> String
+emitUnaryOp op =
+    case op of
+        UOp_Neg ->
+            "-"
+
+        UOp_Not ->
+            "NOT"

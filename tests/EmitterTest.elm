@@ -202,6 +202,46 @@ _end:
 binop db 1 + 2
             """
         , testEmit
+            "const binop = 1 - 2"
+            """
+org 0x8000
+_end:
+    jp _end
+binop db 1 - 2
+            """
+        , testEmit
+            "const binop = 1 < 2"
+            """
+org 0x8000
+_end:
+    jp _end
+binop db 1 < 2
+            """
+        , testEmit
+            "const binop = 1 > 2"
+            """
+org 0x8000
+_end:
+    jp _end
+binop db 1 > 2
+            """
+        , testEmit
+            "const unop = -5"
+            """
+org 0x8000
+_end:
+    jp _end
+unop db - 5
+            """
+        , testEmit
+            "const unop = !true"
+            """
+org 0x8000
+_end:
+    jp _end
+unop db NOT 1
+            """
+        , testEmit
             """const len = String.length("Hello World!")"""
             """
 org 0x8000
@@ -638,6 +678,7 @@ exprs =
         , bools
         , Test.todo "vars"
         , Test.todo "binops"
+        , Test.todo "unaryops"
         , Test.todo "calls"
         , ifExprs
         ]

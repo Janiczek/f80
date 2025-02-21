@@ -242,10 +242,11 @@ value =
         { oneOf =
             [ parenthesizedValue
             , Pratt.literal stringLengthValue
-            , Pratt.literal globalValue
             , Pratt.literal intValue
             , Pratt.literal stringValue
+            , Pratt.literal boolValue
             , Pratt.literal bytesValue
+            , Pratt.literal globalValue
             ]
         , andThenOneOf =
             [ Pratt.infixLeft 1 (Parser.symbol "+") (binOpValue BOp_Add)
@@ -289,6 +290,20 @@ stringValue =
         |. Parser.symbol "\""
 
 
+boolValue : Parser Value
+boolValue =
+    Parser.succeed F80.AST.VBool
+        |= bool
+
+
+bool : Parser Bool
+bool =
+    Parser.oneOf
+        [ Parser.succeed True |. Parser.symbol "true"
+        , Parser.succeed False |. Parser.symbol "false"
+        ]
+
+
 bytesValue : Parser Value
 bytesValue =
     Parser.succeed F80.AST.VBytes
@@ -327,9 +342,10 @@ expr =
         { oneOf =
             [ parenthesizedExpr
             , ifExpr
-            , Pratt.literal varOrCallExpr
             , Pratt.literal intExpr
             , Pratt.literal stringExpr
+            , Pratt.literal boolExpr
+            , Pratt.literal varOrCallExpr
             ]
         , andThenOneOf =
             [ Pratt.infixLeft 1 (Parser.symbol "+") (binOpExpr BOp_Add)
@@ -379,6 +395,12 @@ stringExpr =
                 |> Parser.getChompedString
            )
         |. Parser.symbol "\""
+
+
+boolExpr : Parser Expr
+boolExpr =
+    Parser.succeed F80.AST.Bool
+        |= bool
 
 
 ifExpr : Pratt.Config Expr -> Parser Expr

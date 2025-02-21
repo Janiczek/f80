@@ -100,6 +100,16 @@ globalDeclTests =
                 "const y = \"hello\""
                     |> F80.Parser.parse
                     |> Expect.equal (Ok [ GlobalDecl { name = "y", value = VString "hello" } ])
+        , Test.test "parses bool true global" <|
+            \() ->
+                "const b = true"
+                    |> F80.Parser.parse
+                    |> Expect.equal (Ok [ GlobalDecl { name = "b", value = VBool True } ])
+        , Test.test "parses bool false global" <|
+            \() ->
+                "const b = false"
+                    |> F80.Parser.parse
+                    |> Expect.equal (Ok [ GlobalDecl { name = "b", value = VBool False } ])
         , Test.test "parses binary operation global" <|
             \() ->
                 "const z = x + 1"
@@ -728,6 +738,7 @@ expressionTests =
         [ varTests
         , intTests
         , stringTests
+        , boolTests
         , binOpTests
         , callExprTests
         , ifExprTests
@@ -798,6 +809,48 @@ stringTests =
                                     [ DefineLet
                                         { name = "x"
                                         , value = String "hello"
+                                        }
+                                    ]
+                                }
+                            ]
+                        )
+        ]
+
+
+boolTests : Test
+boolTests =
+    Test.describe "Bool"
+        [ Test.test "parses true" <|
+            \_ ->
+                "main() { let x = true }"
+                    |> F80.Parser.parse
+                    |> Expect.equal
+                        (Ok
+                            [ FnDecl
+                                { name = "main"
+                                , params = []
+                                , body =
+                                    [ DefineLet
+                                        { name = "x"
+                                        , value = Bool True
+                                        }
+                                    ]
+                                }
+                            ]
+                        )
+        , Test.test "parses false" <|
+            \_ ->
+                "main() { let x = false }"
+                    |> F80.Parser.parse
+                    |> Expect.equal
+                        (Ok
+                            [ FnDecl
+                                { name = "main"
+                                , params = []
+                                , body =
+                                    [ DefineLet
+                                        { name = "x"
+                                        , value = Bool False
                                         }
                                     ]
                                 }

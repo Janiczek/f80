@@ -21,6 +21,9 @@ emit globalData =
         VBinOp _ ->
             default ()
 
+        VBool _ ->
+            default ()
+
         VStringLength _ ->
             default ()
 
@@ -46,6 +49,13 @@ emitValue val =
 
         VString s ->
             "'" ++ s ++ "', 0"
+
+        VBool bool ->
+            if bool then
+                "1"
+
+            else
+                "0"
 
         VBytes bytes ->
             bytes

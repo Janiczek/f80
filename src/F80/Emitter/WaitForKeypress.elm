@@ -63,6 +63,7 @@ emit_ ctx emitBlock cases =
                         blockOutputWithoutCode =
                             { blockOutput | mainCode = [] }
                     in
+                    -- TODO Output.andThen but not quite...
                     ( accOutput
                         |> Output.add blockOutputWithoutCode
                     , List.concat

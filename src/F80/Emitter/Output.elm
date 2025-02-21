@@ -1,6 +1,6 @@
 module F80.Emitter.Output exposing
     ( Output
-    , empty, smush, add, toString
+    , empty, smush, add, toString, andThen
     , db, other, code, equ
     , renderText, romCls
     )
@@ -8,7 +8,7 @@ module F80.Emitter.Output exposing
 {-|
 
 @docs Output
-@docs empty, smush, add, toString
+@docs empty, smush, add, toString, andThen
 @docs db, other, code, equ
 
 Standard library
@@ -123,3 +123,13 @@ romCls =
     , otherBlocks = Set.empty
     , data = []
     }
+
+
+andThen : (List String -> Output) -> Output -> Output
+andThen toSecond first =
+    let
+        firstWithoutCode =
+            { first | mainCode = [] }
+    in
+    toSecond first.mainCode
+        |> add firstWithoutCode

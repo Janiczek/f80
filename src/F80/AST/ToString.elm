@@ -53,6 +53,13 @@ valueToString value =
             -- TODO escape quotes
             "\"" ++ str ++ "\""
 
+        VBool bool ->
+            if bool then
+                "true"
+
+            else
+                "false"
+
         VGlobal str ->
             str
 
@@ -192,6 +199,13 @@ exprToString expr =
         String str ->
             -- TODO escape quotes
             "\"" ++ str ++ "\""
+
+        Bool bool ->
+            if bool then
+                "true"
+
+            else
+                "false"
 
         BinOp data ->
             exprToString data.left

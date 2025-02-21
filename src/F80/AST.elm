@@ -52,6 +52,7 @@ type Value
     = VGlobal String
     | VInt Int
     | VString String
+    | VBool Bool
     | VBytes (List Int)
     | VBinOp VBinOpData
     | VStringLength Value
@@ -132,6 +133,7 @@ type Expr
     = Var String
     | Int Int
     | String String
+    | Bool Bool
     | BinOp BinOpData
     | CallExpr CallData
     | IfExpr IfExprData
@@ -366,6 +368,9 @@ walkExpr f acc expr =
             ( newAcc, newExpr )
 
         Int _ ->
+            ( newAcc, newExpr )
+
+        Bool _ ->
             ( newAcc, newExpr )
 
         String _ ->

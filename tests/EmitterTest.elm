@@ -13,6 +13,7 @@ import F80.AST
         )
 import F80.Emitter
 import F80.Emitter.Util
+import F80.Lower.AddImplicitReturns
 import F80.Lower.HoistStringLiterals
 import F80.Parser
 import Fuzz exposing (Fuzzer)
@@ -27,6 +28,7 @@ testEmit source expected =
                 Ok decls ->
                     decls
                         |> F80.Lower.HoistStringLiterals.hoist
+                        |> F80.Lower.AddImplicitReturns.add
                         |> F80.Emitter.emit
                         |> Expect.equalLists
                             (expected
@@ -42,11 +44,95 @@ suite : Test
 suite =
     Test.describe "F80.Emitter.emit"
         [ globals
-        , renderText
+        , stmts
+        , exprs
+        ]
+
+
+stmts : Test
+stmts =
+    Test.describe "stmts"
+        [ renderText
         , romCls
         , loops
         , waitForKeypress
-        , ifs
+        , ifStmts
+        , returns
+        ]
+
+
+returns : Test
+returns =
+    Test.describe "returns"
+        [ testEmit
+            """
+main() {
+}
+        """
+            """
+org 0x8000
+main:
+_end:
+    jp _end
+        """
+        , testEmit
+            """
+main() {
+    return
+}
+        """
+            """
+org 0x8000
+main:
+    jp _end
+_end:
+    jp _end
+        """
+        , testEmit
+            """
+main() {
+    return 1
+}
+        """
+            """
+org 0x8000
+main:
+    jp _end
+_end:
+    jp _end
+        """
+        , testEmit
+            """
+fn() {
+}
+main() {
+}
+        """
+            """
+org 0x8000
+main:
+_end:
+    jp _end
+fn:
+    ret
+        """
+        , testEmit
+            """
+fn() {
+    return 1
+}
+main() {
+}
+        """
+            """
+org 0x8000
+main:
+_end:
+    jp _end
+fn:
+    ld a,1
+    ret
+        """
         ]
 
 
@@ -77,6 +163,22 @@ org 0x8000
 _end:
     jp _end
 bytes db 1, 2, 3
+            """
+        , testEmit
+            "const bool = true"
+            """
+org 0x8000
+_end:
+    jp _end
+bool db 1
+            """
+        , testEmit
+            "const bool = false"
+            """
+org 0x8000
+_end:
+    jp _end
+bool db 0
             """
         , testEmit
             """
@@ -157,7 +259,7 @@ AT EQU 0x16
 hello_length EQU 5
 org 0x8000
 main:
-    ld hl,0x0305
+    ld hl,773
     ld de,hello
     call _renderString
 _end:
@@ -189,7 +291,7 @@ AT EQU 0x16
 _string_0_0_length EQU 5
 org 0x8000
 main:
-    ld hl,0x0305
+    ld hl,773
     ld de,_string_0_0
     call _renderString
 _end:
@@ -223,10 +325,10 @@ _string_0_0_length EQU 5
 _string_0_1_length EQU 5
 org 0x8000
 main:
-    ld hl,0x0001
+    ld hl,1
     ld de,_string_0_0
     call _renderString
-    ld hl,0x0203
+    ld hl,515
     ld de,_string_0_1
     call _renderString
 _end:
@@ -251,9 +353,9 @@ _string_0_1 db 'World', 0
         ]
 
 
-ifs : Test
-ifs =
-    Test.describe "ifs"
+ifStmts : Test
+ifStmts =
+    Test.describe "if stmts"
         [ testEmit
             """
 main() {
@@ -267,7 +369,7 @@ main() {
 ROM_CLS EQU 0x0daf
 org 0x8000
 main:
-    ld a,0x01
+    ld a,1
     cp a
     jz _if_0_end
     call ROM_CLS
@@ -290,7 +392,7 @@ main() {
 ROM_CLS EQU 0x0daf
 org 0x8000
 main:
-    ld a,0x01
+    ld a,1
     cp a
     jz _if_0_else
     call ROM_CLS
@@ -309,6 +411,32 @@ main() {
     }
 }
             """
+        , testEmit
+            """
+fn() {
+    return true
+}
+main() {
+    if (fn()) {
+        ROM.clearScreen()
+    }
+}
+        """
+            """
+ROM_CLS EQU 0x0daf
+org 0x8000
+main:
+    call fn
+    cp a
+    jz _if_0_end
+    call ROM_CLS
+_if_0_end:
+_end:
+    jp _end
+fn:
+    ld a,1
+    ret
+        """
         ]
 
 
@@ -330,7 +458,7 @@ hello_length EQU 5
 org 0x8000
 main:
 decl_1_main_0:
-    ld hl,0x0000
+    ld hl,0
     ld de,hello
     call _renderString
     jp decl_1_main_0
@@ -370,7 +498,7 @@ org 0x8000
 main:
 decl_1_main_0:
 decl_1_main_0_loop_0:
-    ld hl,0x0000
+    ld hl,0
     ld de,hello
     call _renderString
     jp decl_1_main_0_loop_0
@@ -497,5 +625,41 @@ _wait_decl_0_main_0_onJ:
     jp _wait_decl_0_main_0_end
 _wait_decl_0_main_0_onK:
     jp _wait_decl_0_main_0_end
+            """
+        ]
+
+
+exprs : Test
+exprs =
+    Test.describe "exprs"
+        [ ints
+        , Test.todo "strings"
+        , Test.todo "bools"
+        , Test.todo "vars"
+        , Test.todo "binops"
+        , Test.todo "calls"
+        , Test.todo "ifExprs"
+        ]
+
+
+ints : Test
+ints =
+    Test.describe "ints"
+        [ testEmit
+            """
+fn() {
+    return 1
+}
+main() {
+}
+            """
+            """
+org 0x8000
+main:
+_end:
+    jp _end
+fn:
+    ld a,1
+    ret
             """
         ]

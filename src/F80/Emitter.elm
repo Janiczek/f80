@@ -1,6 +1,10 @@
 module F80.Emitter exposing (emit)
 
 {-| Prepares assembly for consumption by the PASMO Z80 assembler.
+
+Arguments to functions are passed on the stack.
+Function return values are in register A.
+
 -}
 
 import Dict exposing (Dict)
@@ -24,7 +28,6 @@ import F80.Emitter.Global
 import F80.Emitter.Output as Output exposing (Output)
 import F80.Emitter.Util as Util exposing (ctxLabel, i, l)
 import F80.Emitter.WaitForKeypress
-import Hex
 
 
 emit : Program -> List String
@@ -56,42 +59,46 @@ emitFnDecl ctx fnData =
             fnData.name == Util.mainFnName
 
         blockOutput =
-            emitBlock (fnData.name :: ctx) fnData.body
-
-        blockWithoutCode =
-            { blockOutput | mainCode = [] }
+            emitBlock { isMain = isMain } (fnData.name :: ctx) fnData.body
     in
     if isMain then
-        Output.code
-            (List.concat
-                [ [ l fnData.name ]
-                , blockOutput.mainCode
-                ]
-            )
-            |> Output.add blockWithoutCode
+        blockOutput
+            |> Output.andThen
+                (\blockCode ->
+                    Output.code
+                        (List.concat
+                            [ [ l fnData.name ]
+                            , blockCode
+                            ]
+                        )
+                )
 
     else
-        Output.other
-            (List.concat
-                [ [ l fnData.name ]
-                , blockOutput.mainCode
-                , [ i "ret" ]
-                ]
-            )
-            |> Output.add blockWithoutCode
+        blockOutput
+            |> Output.andThen
+                (\blockCode ->
+                    Output.other
+                        (List.concat
+                            [ [ l fnData.name ]
+                            , blockCode
+
+                            -- all functions have been lowered to explicitly have returns. we don't need to add `ret` here.
+                            ]
+                        )
+                )
 
 
 {-| These will emit their ASM blocks in the Output.mainCode field. That doesn't mean it's meant to go into `main()`!
 -}
-emitStmt : List String -> Int -> Stmt -> Output
-emitStmt parentCtx ix stmt =
+emitStmt : { isMain : Bool } -> List String -> Int -> Stmt -> Output
+emitStmt isMain parentCtx ix stmt =
     let
         ctx =
             String.fromInt ix :: parentCtx
     in
     case stmt of
         WaitForKeypress data ->
-            F80.Emitter.WaitForKeypress.emit ctx emitBlock data
+            F80.Emitter.WaitForKeypress.emit ctx (emitBlock isMain) data
 
         Loop block ->
             let
@@ -99,11 +106,11 @@ emitStmt parentCtx ix stmt =
                     Util.ctxLabel ctx
             in
             Output.code [ l label ]
-                |> Output.add (emitBlock ("loop" :: ctx) block)
+                |> Output.add (emitBlock isMain ("loop" :: ctx) block)
                 |> Output.add (Output.code [ i <| "jp " ++ label ])
 
         If ifData ->
-            emitIf ifData
+            emitIfStmt ifData
 
         DefineConst defConst ->
             Debug.todo <| "emitStmt defineConst: " ++ Debug.toString defConst
@@ -118,16 +125,26 @@ emitStmt parentCtx ix stmt =
             emitCall callData
 
         Return maybeExpr ->
-            emitReturn maybeExpr
+            emitReturn isMain maybeExpr
 
 
-emitReturn : Maybe Expr -> Output
-emitReturn maybeExpr =
-    Debug.todo "emitReturn"
+emitReturn : { isMain : Bool } -> Maybe Expr -> Output
+emitReturn { isMain } maybeExpr =
+    if isMain then
+        Output.code [ i "jp _end" ]
+
+    else
+        case maybeExpr of
+            Nothing ->
+                Output.code [ i "ret" ]
+
+            Just expr ->
+                emitExpr expr
+                    |> Output.add (Output.code [ i "ret" ])
 
 
-emitIf : IfStmtData -> Output
-emitIf ifData =
+emitIfStmt : IfStmtData -> Output
+emitIfStmt ifData =
     case ifData.else_ of
         Nothing ->
             Debug.todo "emitIf withoutElse"
@@ -136,10 +153,10 @@ emitIf ifData =
             Debug.todo "emitIf withElse"
 
 
-emitBlock : List String -> Block -> Output
-emitBlock ctx block =
+emitBlock : { isMain : Bool } -> List String -> Block -> Output
+emitBlock isMain ctx block =
     block
-        |> List.indexedMap (emitStmt ctx)
+        |> List.indexedMap (emitStmt isMain ctx)
         |> List.foldl Output.add Output.empty
 
 
@@ -201,10 +218,7 @@ renderTextXYHL x y =
     let
         emitInt : String -> Int -> String
         emitInt reg n =
-            Hex.toString n
-                |> String.padLeft 2 '0'
-                |> add0x
-                |> (\hex -> i <| "ld " ++ reg ++ "," ++ hex)
+            i <| "ld " ++ reg ++ "," ++ String.fromInt n
 
         emitVar : String -> String -> String
         emitVar reg var =
@@ -214,11 +228,7 @@ renderTextXYHL x y =
         ( Int xx, Int yy ) ->
             -- Special optimized case
             -- ld hl,0xXXYY
-            (xx * 256 + yy)
-                |> Hex.toString
-                |> String.padLeft 4 '0'
-                |> add0x
-                |> (\hex -> [ i <| "ld hl," ++ hex ])
+            [ i <| "ld hl," ++ String.fromInt (xx * 256 + yy) ]
 
         ( Int xx, Var yy ) ->
             [ emitInt "h" xx
@@ -243,11 +253,6 @@ renderTextXYHL x y =
             Debug.todo "Unexpected Render.text X,Y argument - this should have been typechecked before emitting"
 
 
-add0x : String -> String
-add0x s =
-    "0x" ++ s
-
-
 pushArgs : List Expr -> List String
 pushArgs args =
     List.concatMap
@@ -268,3 +273,13 @@ emitExprToHL expr =
 
         _ ->
             Debug.todo <| "emit expr to HL: " ++ Debug.toString expr
+
+
+emitExpr : Expr -> Output
+emitExpr expr =
+    case expr of
+        Int n ->
+            Output.code [ i <| "ld a," ++ String.fromInt n ]
+
+        _ ->
+            Debug.todo "emitExpr"

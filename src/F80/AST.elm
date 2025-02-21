@@ -58,7 +58,7 @@ type Value
     = VGlobal String
     | VInt Int
     | VString String
-    | VBool Bool
+    | VBool Bool -- Represented as 0 / 255.
     | VBytes (List Int)
     | VBinOp VBinOpData
     | VUnaryOp VUnaryOpData
@@ -146,7 +146,7 @@ type Expr
     = Var String
     | Int Int
     | String String
-    | Bool Bool
+    | Bool Bool -- Represented as 0 / 255.
     | BinOp BinOpData
     | UnaryOp UnaryOpData
     | CallExpr CallData

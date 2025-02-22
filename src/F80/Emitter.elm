@@ -334,7 +334,7 @@ emitExpr ctx expr =
             Debug.todo "emitExpr var"
 
         String _ ->
-            Debug.todo "emitExpr string"
+            Debug.todo "emitExpr String - this shouldn't have happpened - we hoisted all string literals to global string constants"
 
         Bool b ->
             Output.code

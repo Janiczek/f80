@@ -411,8 +411,8 @@ ROM_CLS EQU 0x0daf
 org 0x8000
 main:
     ld a,255
-    cp a
-    jz _ifstmt_decl_0_main_0_end
+    cp 255
+    jp nz,_ifstmt_decl_0_main_0_end
     call ROM_CLS
 _ifstmt_decl_0_main_0_end:
 _end:
@@ -434,8 +434,8 @@ ROM_CLS EQU 0x0daf
 org 0x8000
 main:
     ld a,255
-    cp a
-    jz _ifstmt_decl_0_main_0_else
+    cp 255
+    jp nz,_ifstmt_decl_0_main_0_else
     call ROM_CLS
     jp _ifstmt_decl_0_main_0_end
 _ifstmt_decl_0_main_0_else:
@@ -444,13 +444,36 @@ _ifstmt_decl_0_main_0_end:
 _end:
     jp _end
             """
-        , Test.todo
+        , testEmit
             """
 main() {
     if (1 < 2) {
         ROM.clearScreen()
     }
 }
+            """
+            -- TODO we can optimize this away later, for now this is translated verbatim
+            """
+ROM_CLS EQU 0x0daf
+org 0x8000
+main:
+    ld a,2
+    push af
+    ld a,1
+    pop bc
+    cp b
+    jp nc,_lt_decl_0_main_0_cond_onLT
+    ld a,0
+    jp _lt_decl_0_main_0_cond_end
+_lt_decl_0_main_0_cond_onLT:
+    ld a,255
+_lt_decl_0_main_0_cond_end:
+    cp 255
+    jp nz,_ifstmt_decl_0_main_0_end
+    call ROM_CLS
+_ifstmt_decl_0_main_0_end:
+_end:
+    jp _end
             """
         , testEmit
             """
@@ -468,10 +491,10 @@ ROM_CLS EQU 0x0daf
 org 0x8000
 main:
     call fn
-    cp a
-    jz _ifstmt_decl_0_main_0_end
+    cp 255
+    jp nz,_ifstmt_decl_1_main_0_end
     call ROM_CLS
-_ifstmt_decl_0_main_0_end:
+_ifstmt_decl_1_main_0_end:
 _end:
     jp _end
 fn:
@@ -904,8 +927,8 @@ main() {
 org 0x8000
 main:
     ld a,255
-    cp a
-    jz _ifexpr_decl_0_main_0_return_else
+    cp 255
+    jp nz,_ifexpr_decl_0_main_0_return_else
     ld a,5
     jp _ifexpr_decl_0_main_0_return_end
 _ifexpr_decl_0_main_0_return_else:
@@ -930,8 +953,8 @@ _end:
     jp _end
 fn:
     ld a,255
-    cp a
-    jz _ifexpr_decl_1_fn_0_return_else
+    cp 255
+    jp nz,_ifexpr_decl_1_fn_0_return_else
     ld a,5
     jp _ifexpr_decl_1_fn_0_return_end
 _ifexpr_decl_1_fn_0_return_else:
@@ -954,14 +977,14 @@ _end:
     jp _end
 fn:
     ld a,255
-    cp a
-    jz _ifexpr_decl_1_fn_0_return_else
+    cp 255
+    jp nz,_ifexpr_decl_1_fn_0_return_else
     ld a,0
     jp _ifexpr_decl_1_fn_0_return_end
 _ifexpr_decl_1_fn_0_return_else:
     ld a,0
-    cp a
-    jz _ifexpr_decl_1_fn_0_return_else_else
+    cp 255
+    jp nz,_ifexpr_decl_1_fn_0_return_else_else
     ld a,1
     jp _ifexpr_decl_1_fn_0_return_else_end
 _ifexpr_decl_1_fn_0_return_else_else:

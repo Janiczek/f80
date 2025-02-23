@@ -170,8 +170,8 @@ emitIfStmt isMain ctx ifData =
             emitExpr ("cond" :: ctx) ifData.cond
                 |> Output.add
                     (Output.code
-                        [ i "cp a"
-                        , i <| "jz " ++ endLabel
+                        [ i "cp 255"
+                        , i <| "jp nz," ++ endLabel
                         ]
                     )
                 |> Output.add (emitBlock isMain ("then" :: ctx) ifData.then_)
@@ -185,8 +185,8 @@ emitIfStmt isMain ctx ifData =
             emitExpr ("cond" :: ctx) ifData.cond
                 |> Output.add
                     (Output.code
-                        [ i "cp a"
-                        , i <| "jz " ++ elseLabel
+                        [ i "cp 255"
+                        , i <| "jp nz," ++ elseLabel
                         ]
                     )
                 |> Output.add (emitBlock isMain ("then" :: ctx) ifData.then_)
@@ -225,11 +225,15 @@ emitCall callData =
             Output.code
                 (List.concat
                     [ pushArgs callData.args
+
+                    -- This will work for global functions, not for lambda exprs. That's OK, we don't have lambdas (yet) :)
                     , [ i <| "call " ++ callData.fn ]
                     ]
                 )
 
 
+{-| Clobbers DE,HL. If that causes issues, TODO clean up after ourselves?
+-}
 emitCallRenderText : CallData -> Output
 emitCallRenderText callData =
     case callData.args of
@@ -464,8 +468,8 @@ emitExpr ctx expr =
                         ]
                     )
 
-        CallExpr _ ->
-            Debug.todo "emitExpr call"
+        CallExpr data ->
+            emitCall data
 
         IfExpr data ->
             emitIfExpr ctx data
@@ -492,8 +496,8 @@ emitIfExpr ctx data =
     emitExpr ("cond" :: ctx) data.cond
         |> Output.add
             (Output.code
-                [ i "cp a"
-                , i <| "jz " ++ elseLabel
+                [ i "cp 255"
+                , i <| "jp nz," ++ elseLabel
                 ]
             )
         |> Output.add (emitExpr ("then" :: ctx) data.then_)

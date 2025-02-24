@@ -799,7 +799,8 @@ hello db 'Hello', 0
 strings : Test
 strings =
     Test.describe "strings"
-        [ testEmit
+        [ -- String literals do get hoisted to global vars and so we use them as vars.
+          testEmit
             """
 fn() {
     return "Hello"

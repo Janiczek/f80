@@ -52,12 +52,27 @@ suite =
 stmts : Test
 stmts =
     Test.describe "stmts"
-        [ renderText
-        , romCls
-        , loops
+        [ loops
         , waitForKeypress
         , ifStmts
         , returns
+        , Test.todo "const stmts"
+        , Test.todo "let stmts"
+        , Test.todo "assign stmts"
+        , callStmts
+        ]
+
+
+callStmts : Test
+callStmts =
+    Test.describe "call stmts"
+        [ renderTextStmt
+        , romClsStmt
+        , Test.todo "generic 0-arg call stmt"
+        , Test.todo "generic 1-arg call stmt"
+        , Test.todo "generic 2-arg call stmt"
+        , Test.todo "generic 3-arg call stmt"
+        , Test.todo "generic 4-arg call stmt"
         ]
 
 
@@ -265,9 +280,9 @@ len db hello_length
         ]
 
 
-romCls : Test
-romCls =
-    Test.describe "ROM.clearScreen()"
+romClsStmt : Test
+romClsStmt =
+    Test.describe "ROM.clearScreen() stmt"
         [ testEmit
             """
 main() {
@@ -285,9 +300,9 @@ _end:
         ]
 
 
-renderText : Test
-renderText =
-    Test.describe "Render.text()"
+renderTextStmt : Test
+renderTextStmt =
+    Test.describe "Render.text() stmt"
         [ testEmit
             """
 const hello = "Hello"
@@ -702,8 +717,82 @@ exprs =
         , Test.todo "vars"
         , binOps
         , unaryOps
-        , Test.todo "calls"
+        , callExprs
         , ifExprs
+        ]
+
+
+callExprs : Test
+callExprs =
+    Test.describe "call Exprs"
+        [ renderTextExpr
+        , romClsExpr
+        , Test.todo "generic 0-arg call expr"
+        , Test.todo "generic 1-arg call expr"
+        , Test.todo "generic 2-arg call expr"
+        , Test.todo "generic 3-arg call expr"
+        , Test.todo "generic 4-arg call expr"
+        ]
+
+
+romClsExpr : Test
+romClsExpr =
+    Test.describe "ROM.clearScreen() expr"
+        [ testEmit
+            """
+main() {
+    return ROM.clearScreen()
+}
+            """
+            """
+ROM_CLS EQU 0x0daf
+org 0x8000
+main:
+    call ROM_CLS
+    jp _end
+_end:
+    jp _end
+            """
+        ]
+
+
+renderTextExpr : Test
+renderTextExpr =
+    Test.describe "Render.text() expr"
+        [ testEmit
+            """
+const hello = "Hello"
+main() {
+    return Render.text(3, 5, hello)
+}
+            """
+            """
+AT EQU 0x16
+hello_length EQU 5
+org 0x8000
+main:
+    ld hl,773
+    ld de,hello
+    call _renderString
+    jp _end
+_end:
+    jp _end
+_renderString:
+    ld a, AT
+    rst 0x10
+    ld a,l
+    rst 0x10
+    ld a,h
+    rst 0x10
+_renderStringLoop:
+    ld a,(de)
+    cp 0
+    ret z
+    rst 0x10
+    inc de
+    jr _renderStringLoop
+hello db 'Hello', 0
+            """
         ]
 
 

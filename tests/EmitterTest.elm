@@ -697,13 +697,38 @@ exprs : Test
 exprs =
     Test.describe "exprs"
         [ ints
-        , Test.todo "strings"
+        , strings
         , bools
         , Test.todo "vars"
         , binOps
         , unaryOps
         , Test.todo "calls"
         , ifExprs
+        ]
+
+
+strings : Test
+strings =
+    Test.describe "strings"
+        [ testEmit
+            """
+fn() {
+    return "Hello"
+}
+main() {
+}
+            """
+            """
+_string_0_0_length EQU 5
+org 0x8000
+main:
+_end:
+    jp _end
+fn:
+    ld a,_string_0_0
+    ret
+_string_0_0 db 'Hello', 0
+            """
         ]
 
 

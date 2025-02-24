@@ -334,11 +334,15 @@ emitExpr ctx expr =
         Int n ->
             Output.code [ i <| "ld a," ++ String.fromInt n ]
 
-        Var _ ->
-            Debug.todo "emitExpr var"
+        Var var ->
+            -- TODO this is probably too simplistic. We might need to split to
+            -- Global and Local vars, or have a way of knowing which one we're
+            -- looking at.
+            -- The `ld a,var` approach should work for globals since the var is a label.
+            Output.code [ i <| "ld a," ++ var ]
 
         String _ ->
-            Debug.todo "emitExpr String - this shouldn't have happpened - we hoisted all string literals to global string constants"
+            Debug.todo "emitExpr String - this shouldn't have happened - we hoisted all string literals to global string constants"
 
         Bool b ->
             Output.code

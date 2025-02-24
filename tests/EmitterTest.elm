@@ -714,7 +714,7 @@ exprs =
         [ ints
         , strings
         , bools
-        , Test.todo "vars"
+        , Test.todo "var exprs"
         , binOps
         , unaryOps
         , callExprs

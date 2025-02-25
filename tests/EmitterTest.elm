@@ -1,5 +1,8 @@
 module EmitterTest exposing (suite)
 
+import Ansi.Color
+import Diff
+import Diff.ToString
 import Example
 import Expect exposing (Expectation)
 import F80.AST
@@ -20,6 +23,33 @@ import Fuzz exposing (Fuzzer)
 import Test exposing (Test)
 
 
+{-| Taken straight from docs of miniBill/elm-diff
+-}
+expectEqualMultiline : String -> String -> Expectation
+expectEqualMultiline expected actual =
+    if expected == actual then
+        Expect.pass
+
+    else
+        let
+            header : String
+            header =
+                Ansi.Color.fontColor Ansi.Color.blue "Diff from expected to actual:"
+        in
+        Expect.fail
+            (header
+                ++ "\n"
+                ++ (Diff.diffLinesWith
+                        (Diff.defaultOptions
+                            |> Diff.ignoreLeadingWhitespace
+                        )
+                        expected
+                        actual
+                        |> Diff.ToString.diffToString { context = 4, color = True }
+                   )
+            )
+
+
 testEmit : String -> String -> Test
 testEmit source expected =
     Test.test ("Emitting: " ++ source) <|
@@ -30,10 +60,10 @@ testEmit source expected =
                         |> F80.Lower.HoistStringLiterals.hoist
                         |> F80.Lower.AddImplicitReturns.add
                         |> F80.Emitter.emit
-                        |> Expect.equalLists
+                        |> String.join "\n"
+                        |> expectEqualMultiline
                             (expected
                                 |> String.trim
-                                |> String.split "\n"
                             )
 
                 Err err ->
@@ -68,11 +98,36 @@ callStmts =
     Test.describe "call stmts"
         [ renderTextStmt
         , romClsStmt
-        , Test.todo "generic 0-arg call stmt"
+        , generic0ArgCallStmt
         , Test.todo "generic 1-arg call stmt"
         , Test.todo "generic 2-arg call stmt"
         , Test.todo "generic 3-arg call stmt"
         , Test.todo "generic 4-arg call stmt"
+        ]
+
+
+generic0ArgCallStmt : Test
+generic0ArgCallStmt =
+    Test.describe "generic 0-arg call stmt"
+        [ testEmit
+            """
+main(){
+    fn()
+}
+fn(){
+    return 1
+}
+            """
+            """
+org 0x8000
+main:
+    call fn
+_end:
+    jp _end
+fn:
+    ld a,1
+    ret
+            """
         ]
 
 

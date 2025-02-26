@@ -1,6 +1,7 @@
 module F80.Emitter.Output exposing
     ( Output
-    , empty, smush, add, toString, andThen
+    , empty, smush, add, toString, fromList
+    , andThen, andThen2
     , db, other, code, equ
     , renderText, romCls
     )
@@ -8,7 +9,8 @@ module F80.Emitter.Output exposing
 {-|
 
 @docs Output
-@docs empty, smush, add, toString, andThen
+@docs empty, smush, add, toString, fromList
+@docs andThen, andThen2
 @docs db, other, code, equ
 
 Standard library
@@ -125,11 +127,21 @@ romCls =
     }
 
 
+fromList : List Output -> Output
+fromList os =
+    List.foldl add empty os
+
+
 andThen : (List String -> Output) -> Output -> Output
-andThen toSecond first =
-    let
-        firstWithoutCode =
-            { first | mainCode = [] }
-    in
-    toSecond first.mainCode
-        |> add firstWithoutCode
+andThen f o1 =
+    empty
+        |> add { o1 | mainCode = [] }
+        |> add (f o1.mainCode)
+
+
+andThen2 : (List String -> List String -> Output) -> Output -> Output -> Output
+andThen2 f o1 o2 =
+    empty
+        |> add { o1 | mainCode = [] }
+        |> add { o2 | mainCode = [] }
+        |> add (f o1.mainCode o2.mainCode)

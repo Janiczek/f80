@@ -99,10 +99,11 @@ callStmts =
         [ renderTextStmt
         , romClsStmt
         , generic0ArgCallStmt
-        , Test.todo "generic 1-arg call stmt"
+        , generic1ArgCallStmt
         , Test.todo "generic 2-arg call stmt"
         , Test.todo "generic 3-arg call stmt"
         , Test.todo "generic 4-arg call stmt"
+        , Test.todo "generic 5-arg call stmt"
         ]
 
 
@@ -131,6 +132,35 @@ fn:
         ]
 
 
+generic1ArgCallStmt : Test
+generic1ArgCallStmt =
+    Test.describe "generic 1-arg call stmt"
+        [ testEmit
+            """
+main(){
+    fn(1)
+}
+fn(a){
+    return a
+}
+            """
+            -- TODO optimize away ld a,a
+            """
+org 0x8000
+main:
+    ld a,1
+    push af
+    call fn
+_end:
+    jp _end
+fn:
+    pop af
+    ld a,a
+    ret
+            """
+        ]
+
+
 returns : Test
 returns =
     Test.describe "returns"
@@ -138,32 +168,33 @@ returns =
             """
 main() {
 }
-        """
+            """
             """
 org 0x8000
 main:
 _end:
     jp _end
-        """
+            """
         , testEmit
             """
 main() {
     return
 }
-        """
+            """
+            -- TODO optimize away jp _end before _end:
             """
 org 0x8000
 main:
     jp _end
 _end:
     jp _end
-        """
+            """
         , testEmit
             """
 main() {
     return 1
 }
-        """
+            """
             """
 org 0x8000
 main:
@@ -171,14 +202,14 @@ main:
     jp _end
 _end:
     jp _end
-        """
+            """
         , testEmit
             """
 fn() {
 }
 main() {
 }
-        """
+            """
             """
 org 0x8000
 main:
@@ -186,7 +217,7 @@ _end:
     jp _end
 fn:
     ret
-        """
+            """
         , testEmit
             """
 fn() {
@@ -194,7 +225,7 @@ fn() {
 }
 main() {
 }
-        """
+            """
             """
 org 0x8000
 main:
@@ -203,7 +234,7 @@ _end:
 fn:
     ld a,1
     ret
-        """
+            """
         ]
 
 
@@ -782,11 +813,68 @@ callExprs =
     Test.describe "call Exprs"
         [ renderTextExpr
         , romClsExpr
-        , Test.todo "generic 0-arg call expr"
-        , Test.todo "generic 1-arg call expr"
+        , generic0ArgCallExpr
+        , generic1ArgCallExpr
         , Test.todo "generic 2-arg call expr"
         , Test.todo "generic 3-arg call expr"
         , Test.todo "generic 4-arg call expr"
+        , Test.todo "generic 5-arg call expr"
+        ]
+
+
+generic0ArgCallExpr : Test
+generic0ArgCallExpr =
+    Test.describe "generic 0-arg call expr"
+        [ testEmit
+            """
+main(){
+    return fn()
+}
+fn(){
+    return 1
+}
+            """
+            """
+org 0x8000
+main:
+    call fn
+    jp _end
+_end:
+    jp _end
+fn:
+    ld a,1
+    ret
+            """
+        ]
+
+
+generic1ArgCallExpr : Test
+generic1ArgCallExpr =
+    Test.describe "generic 1-arg call expr"
+        [ testEmit
+            """
+main(){
+    return fn(1)
+}
+fn(a){
+    return a
+}
+            """
+            -- TODO optimize away ld a,a
+            """
+org 0x8000
+main:
+    ld a,1
+    push af
+    call fn
+    jp _end
+_end:
+    jp _end
+fn:
+    pop af
+    ld a,a
+    ret
+            """
         ]
 
 

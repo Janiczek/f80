@@ -20,6 +20,7 @@ import F80.AST as AST
         , GlobalDeclData
         , IfExprData
         , IfStmtData
+        , Param
         , Program
         , Stmt(..)
         , UnaryOp(..)
@@ -36,7 +37,7 @@ emit : Program -> List String
 emit program =
     program
         |> List.indexedMap emitDecl
-        |> List.foldl Output.add Output.empty
+        |> Output.fromList
         |> Output.toString
 
 
@@ -64,6 +65,7 @@ emitFnDecl ctx fnData =
             emitBlock { isMain = isMain } (fnData.name :: ctx) fnData.body
     in
     if isMain then
+        -- We know main has 0 args, so this is simplified
         blockOutput
             |> Output.andThen
                 (\blockCode ->
@@ -76,18 +78,45 @@ emitFnDecl ctx fnData =
                 )
 
     else
-        blockOutput
-            |> Output.andThen
-                (\blockCode ->
-                    Output.other
-                        (List.concat
-                            [ [ l fnData.name ]
-                            , blockCode
+        Output.andThen2
+            (\paramsCode blockCode ->
+                Output.other
+                    (List.concat
+                        [ [ l fnData.name ]
+                        , paramsCode
+                        , blockCode
 
-                            -- all functions have been lowered to explicitly have returns. we don't need to add `ret` here.
-                            ]
-                        )
-                )
+                        -- all functions have been lowered to explicitly have returns. we don't need to add `ret` here.
+                        ]
+                    )
+            )
+            (emitFnDeclParams ctx fnData.params)
+            blockOutput
+
+
+emitFnDeclParams : List String -> List Param -> Output
+emitFnDeclParams ctx params =
+    params
+        |> List.indexedMap
+            (\ix param ->
+                case ix of
+                    0 ->
+                        Output.code [ i "pop af" ]
+
+                    -- This is ineffective: we should be able to use the c register on its own, but we're throwing it away:
+                    1 ->
+                        Output.code [ i "pop bc" ]
+
+                    2 ->
+                        Output.code [ i "pop de" ]
+
+                    3 ->
+                        Output.code [ i "pop hl" ]
+
+                    _ ->
+                        Debug.todo <| "emitFnDeclParams: arity " ++ String.fromInt ix
+            )
+        |> Output.fromList
 
 
 {-| These will emit their ASM blocks in the Output.mainCode field. That doesn't mean it's meant to go into `main()`!
@@ -124,7 +153,7 @@ emitStmt isMain parentCtx ix stmt =
             emitAssign assignData
 
         CallStmt callData ->
-            emitCall callData
+            emitCall ctx callData
 
         Return maybeExpr ->
             emitReturn isMain ctx maybeExpr
@@ -204,7 +233,7 @@ emitBlock : { isMain : Bool } -> List String -> Block -> Output
 emitBlock isMain ctx block =
     block
         |> List.indexedMap (emitStmt isMain ctx)
-        |> List.foldl Output.add Output.empty
+        |> Output.fromList
 
 
 emitAssign : AssignData -> Output
@@ -212,8 +241,8 @@ emitAssign assignData =
     Debug.todo "emitAssign"
 
 
-emitCall : CallData -> Output
-emitCall callData =
+emitCall : List String -> CallData -> Output
+emitCall ctx callData =
     case callData.fn of
         "ROM.clearScreen" ->
             Output.romCls
@@ -222,14 +251,23 @@ emitCall callData =
             emitCallRenderText callData
 
         _ ->
-            Output.code
-                (List.concat
-                    [ pushArgs callData.args
+            emitCallArgs ctx callData.args
+                |> Output.add
+                    (Output.code
+                        -- This will work for global functions, not for lambda exprs. That's OK, we don't have lambdas (yet) :)
+                        [ i <| "call " ++ callData.fn ]
+                    )
 
-                    -- This will work for global functions, not for lambda exprs. That's OK, we don't have lambdas (yet) :)
-                    , [ i <| "call " ++ callData.fn ]
-                    ]
-                )
+
+emitCallArgs : List String -> List Expr -> Output
+emitCallArgs ctx args =
+    args
+        |> List.indexedMap
+            (\ix arg ->
+                emitExpr (String.fromInt ix :: "arg" :: ctx) arg
+                    |> Output.add (Output.code [ i "push af" ])
+            )
+        |> Output.fromList
 
 
 {-| Clobbers DE,HL. If that causes issues, TODO clean up after ourselves?
@@ -302,28 +340,6 @@ renderTextXYHL x y =
                     Debug.log "Unexpected Render.text X,Y argument" ( x, y )
             in
             Debug.todo "Unexpected Render.text X,Y argument - this should have been typechecked before emitting"
-
-
-pushArgs : List Expr -> List String
-pushArgs args =
-    List.concatMap
-        (\arg -> emitExprToHL arg ++ [ i "push hl" ])
-        args
-
-
-emitExprToHL : Expr -> List String
-emitExprToHL expr =
-    case expr of
-        Int n ->
-            [ i <| "ld hl," ++ String.fromInt n ]
-
-        Var name ->
-            -- TODO this will only work for globals, but not for locals
-            [ i <| "ld hl,(" ++ name ++ ")"
-            ]
-
-        _ ->
-            Debug.todo <| "emit expr to HL: " ++ Debug.toString expr
 
 
 {-| Loads the value into the register A.
@@ -473,7 +489,7 @@ emitExpr ctx expr =
                     )
 
         CallExpr data ->
-            emitCall data
+            emitCall ctx data
 
         IfExpr data ->
             emitIfExpr ctx data

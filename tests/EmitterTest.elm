@@ -76,8 +76,25 @@ suite =
         [ globals
         , stmts
         , exprs
+        , complex
         ]
 
+complex : Test
+complex =
+    Test.describe "complex"
+        [ Test.todo
+            """
+main() {
+    const x = 2
+    let y = 3
+    return fn(y,x)
+}
+fn(a,b) {
+    const c = 2
+    return c * a + b // (2 * 3) + 2 = 8
+}
+            """
+            ]
 
 stmts : Test
 stmts =
@@ -86,11 +103,85 @@ stmts =
         , waitForKeypress
         , ifStmts
         , returns
-        , Test.todo "const stmts"
-        , Test.todo "let stmts"
+        , consts
+        , lets
         , Test.todo "assign stmts"
         , callStmts
         ]
+
+
+consts : Test
+consts =
+    Test.describe "consts"
+        [ testEmit
+            """
+main() {
+    const x = 1
+}
+            """
+            """
+org 0x8000
+main:
+    ld a,1
+    push af
+_end:
+    jp _end
+            """
+        , testEmit
+            """
+main() {
+    const x = 1
+    const y = 2
+}
+            """
+            """
+org 0x8000
+main:
+    ld a,1
+    push af
+    ld a,2
+    push af
+_end:
+    jp _end
+            """
+        ]
+
+lets : Test
+lets =
+    Test.describe "lets"
+        [ testEmit
+            """
+main() {
+    let x = 1
+}
+            """
+            """
+org 0x8000
+main:
+    ld a,1
+    push af
+_end:
+    jp _end
+            """
+        , testEmit
+            """
+main() {
+    let x = 1
+    let y = 2
+}
+            """
+            """
+org 0x8000
+main:
+    ld a,1
+    push af
+    ld a,2
+    push af
+_end:
+    jp _end
+            """
+        ]
+
 
 
 callStmts : Test
@@ -154,8 +245,9 @@ main:
 _end:
     jp _end
 fn:
-    pop af
-    ld a,a
+    ld ix,2
+    add ix,sp
+    ld a,(ix-1)
     ret
             """
         ]
@@ -545,6 +637,7 @@ _ifstmt_decl_0_main_0_end:
 _end:
     jp _end
             """
+        , Test.todo "if (1 > 2) { ROM.clearScreen() }"
         , testEmit
             """
 main() {
@@ -563,12 +656,12 @@ main:
     ld a,1
     pop bc
     cp b
-    jp nc,_lt_decl_0_main_0_cond_onLT
+    jp nc,_lt_decl_0_main_0_cond_binop_onLT
     ld a,0
-    jp _lt_decl_0_main_0_cond_end
-_lt_decl_0_main_0_cond_onLT:
+    jp _lt_decl_0_main_0_cond_binop_end
+_lt_decl_0_main_0_cond_binop_onLT:
     ld a,255
-_lt_decl_0_main_0_cond_end:
+_lt_decl_0_main_0_cond_binop_end:
     cp 255
     jp nz,_ifstmt_decl_0_main_0_end
     call ROM_CLS
@@ -800,7 +893,7 @@ exprs =
         [ ints
         , strings
         , bools
-        , Test.todo "var exprs"
+        , vars
         , binOps
         , unaryOps
         , callExprs
@@ -860,7 +953,6 @@ fn(a){
     return a
 }
             """
-            -- TODO optimize away ld a,a
             """
 org 0x8000
 main:
@@ -871,8 +963,9 @@ main:
 _end:
     jp _end
 fn:
-    pop af
-    ld a,a
+    ld ix,2
+    add ix,sp
+    ld a,(ix-1)
     ret
             """
         ]
@@ -1054,12 +1147,12 @@ main:
     ld a,20
     pop bc
     cp b
-    jp nc,_gt_decl_0_main_0_return_onGT
+    jp nc,_gt_decl_0_main_0_binop_onGT
     ld a,0
-    jp _gt_decl_0_main_0_return_end
-_gt_decl_0_main_0_return_onGT:
+    jp _gt_decl_0_main_0_binop_end
+_gt_decl_0_main_0_binop_onGT:
     ld a,255
-_gt_decl_0_main_0_return_end:
+_gt_decl_0_main_0_binop_end:
     jp _end
 _end:
     jp _end
@@ -1078,12 +1171,12 @@ main:
     ld a,10
     pop bc
     cp b
-    jp nc,_lt_decl_0_main_0_return_onLT
+    jp nc,_lt_decl_0_main_0_binop_onLT
     ld a,0
-    jp _lt_decl_0_main_0_return_end
-_lt_decl_0_main_0_return_onLT:
+    jp _lt_decl_0_main_0_binop_end
+_lt_decl_0_main_0_binop_onLT:
     ld a,255
-_lt_decl_0_main_0_return_end:
+_lt_decl_0_main_0_binop_end:
     jp _end
 _end:
     jp _end
@@ -1171,6 +1264,75 @@ fn:
         ]
 
 
+vars : Test
+vars =
+    Test.describe "vars"
+        [ testEmit
+            """
+main() {
+    const x = 1
+    return x
+}
+            """
+            """
+org 0x8000
+main:
+    ld a,1
+    push af
+    ld ix,2
+    add ix,sp
+    ld a,(ix-1)
+    jp _end
+_end:
+    jp _end
+            """
+        , testEmit
+            """
+main() {
+    const x = 1
+    const y = 2
+    return x
+}
+            """
+            """
+org 0x8000
+main:
+    ld a,1
+    push af
+    ld a,2
+    push af
+    ld ix,4
+    add ix,sp
+    ld a,(ix-1)
+    jp _end
+_end:
+    jp _end
+            """
+        , testEmit
+            """
+main() {
+    const x = 1
+    const y = 2
+    return y
+}
+            """
+            """
+org 0x8000
+main:
+    ld a,1
+    push af
+    ld a,2
+    push af
+    ld ix,4
+    add ix,sp
+    ld a,(ix-3)
+    jp _end
+_end:
+    jp _end
+            """
+        ]
+
+
 ifExprs : Test
 ifExprs =
     Test.describe "if exprs"
@@ -1186,12 +1348,12 @@ org 0x8000
 main:
     ld a,255
     cp 255
-    jp nz,_ifexpr_decl_0_main_0_return_else
+    jp nz,_ifexpr_decl_0_main_0_else
     ld a,5
-    jp _ifexpr_decl_0_main_0_return_end
-_ifexpr_decl_0_main_0_return_else:
+    jp _ifexpr_decl_0_main_0_end
+_ifexpr_decl_0_main_0_else:
     ld a,6
-_ifexpr_decl_0_main_0_return_end:
+_ifexpr_decl_0_main_0_end:
     jp _end
 _end:
     jp _end
@@ -1212,12 +1374,12 @@ _end:
 fn:
     ld a,255
     cp 255
-    jp nz,_ifexpr_decl_1_fn_0_return_else
+    jp nz,_ifexpr_decl_1_fn_0_else
     ld a,5
-    jp _ifexpr_decl_1_fn_0_return_end
-_ifexpr_decl_1_fn_0_return_else:
+    jp _ifexpr_decl_1_fn_0_end
+_ifexpr_decl_1_fn_0_else:
     ld a,6
-_ifexpr_decl_1_fn_0_return_end:
+_ifexpr_decl_1_fn_0_end:
     ret
             """
         , testEmit
@@ -1236,19 +1398,19 @@ _end:
 fn:
     ld a,255
     cp 255
-    jp nz,_ifexpr_decl_1_fn_0_return_else
+    jp nz,_ifexpr_decl_1_fn_0_else
     ld a,0
-    jp _ifexpr_decl_1_fn_0_return_end
-_ifexpr_decl_1_fn_0_return_else:
+    jp _ifexpr_decl_1_fn_0_end
+_ifexpr_decl_1_fn_0_else:
     ld a,0
     cp 255
-    jp nz,_ifexpr_decl_1_fn_0_return_else_else
+    jp nz,_ifexpr_decl_1_fn_0_if_else_else
     ld a,1
-    jp _ifexpr_decl_1_fn_0_return_else_end
-_ifexpr_decl_1_fn_0_return_else_else:
+    jp _ifexpr_decl_1_fn_0_if_else_end
+_ifexpr_decl_1_fn_0_if_else_else:
     ld a,2
-_ifexpr_decl_1_fn_0_return_else_end:
-_ifexpr_decl_1_fn_0_return_end:
+_ifexpr_decl_1_fn_0_if_else_end:
+_ifexpr_decl_1_fn_0_end:
     ret
             """
         ]

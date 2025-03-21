@@ -3,33 +3,34 @@ module F80.Emitter.WaitForKeypress exposing (emit)
 import Dict
 import F80.AST exposing (KeyPattern(..), Stmt, WaitForKeypressItem)
 import F80.Emitter.Output as Output exposing (Output)
+import F80.Emitter.State as State exposing (State)
 import F80.Emitter.Util as Util exposing (i, l)
 import Set
 
 
 emit :
-    List String
-    -> (List String -> List Stmt -> Output)
+    (List Stmt -> State -> ( Output, State ))
     -> List WaitForKeypressItem
-    -> Output
-emit ctx emitBlock cases =
+    -> State
+    -> ( Output, State )
+emit emitBlock cases state =
     case cases of
         [] ->
             Debug.todo "Define what should happen when the wait has no patterns. 'Press any key'?"
 
         _ ->
-            emit_ ctx emitBlock cases
+            emit_ emitBlock cases state
 
 
 emit_ :
-    List String
-    -> (List String -> List Stmt -> Output)
+    (List Stmt -> State -> ( Output, State ))
     -> List WaitForKeypressItem
-    -> Output
-emit_ ctx emitBlock cases =
+    -> State
+    -> ( Output, State )
+emit_ emitBlock cases state =
     let
         ctxLabel =
-            Util.ctxLabel ctx
+            Util.ctxLabel state.ctx
 
         waitPrefix =
             "_wait_" ++ ctxLabel ++ "_"
@@ -49,83 +50,61 @@ emit_ ctx emitBlock cases =
         onPrefix =
             waitPrefix ++ "on"
 
-        ( auxOutput, caseBlocks ) =
-            List.foldl
-                (\case_ ( accOutput, accBlocks ) ->
-                    let
-                        keyLabel_ =
-                            keyLabel onPrefix case_.on
-
-                        blockOutput : Output
-                        blockOutput =
-                            emitBlock (keyLabel_ :: ctx) case_.body
-
-                        blockOutputWithoutCode =
-                            { blockOutput | mainCode = [] }
-                    in
-                    -- TODO Output.andThen but not quite...
-                    ( accOutput
-                        |> Output.add blockOutputWithoutCode
-                    , List.concat
-                        [ [ l keyLabel_ ]
-                        , blockOutput.mainCode
-                        , [ i <| "jp " ++ endLabel ]
-                        ]
-                        :: accBlocks
+        caseBlocks =
+            cases
+                |> List.map
+                    (\case_ ->
+                        let
+                            keyLabel_ =
+                                keyLabel onPrefix case_.on
+                        in
+                        \os ->
+                            os
+                                |> State.l keyLabel_
+                                |> State.withContext keyLabel_ (emitBlock case_.body)
+                                |> State.i ("jp " ++ endLabel)
                     )
-                )
-                ( Output.empty, [] )
-                cases
     in
-    { equs = Dict.empty
-    , mainCode =
-        [ i <| "jp " ++ startLabel
-        , l endLabel
-        ]
-    , otherBlocks =
-        [ [ l startLabel
-          , l nonePressedLabel
-
-          {- TODO later when we have more keys to pattern match on: group
-             these reads. Right now we only have J and K which are luckily
-             on a single port.
-          -}
-          , i "ld a,0xbf" -- the group with H,J,K,L,Enter
-          , i "in a,(0xfe)"
-          ]
-        , cases
-            |> List.concatMap
-                (\case_ ->
-                    [ i <| "bit " ++ String.fromInt (bit case_.on) ++ ",a"
-                    , i <| "jp z," ++ nonePressedLabel
-                    ]
-                )
-        , [ l anyPressedLabel
-
-          {- TODO later when we have more keys to pattern match on: group
-             these reads. Right now we only have J and K which are luckily
-             on a single port.
-          -}
-          , i "ld a,0xbf" -- the group with H,J,K,L,Enter
-          , i "in a,(0xfe)"
-          ]
-        , cases
-            |> List.concatMap
-                (\case_ ->
-                    [ i <| "bit " ++ String.fromInt (bit case_.on) ++ ",a"
-                    , i <| "jp z," ++ keyLabel onPrefix case_.on
-                    ]
-                )
-        , [ i <| "jp " ++ anyPressedLabel ]
-        , caseBlocks
-            |> List.reverse
-            |> List.concat
-        ]
-            |> List.concat
-            |> Set.singleton
-    , data = []
-    }
-        |> Output.add auxOutput
+    State.initWith state
+        |> State.i ("jp " ++ startLabel)
+        |> State.l endLabel
+        |> State.otherBlock startLabel
+            (\state1 ->
+                State.initWith state1
+                    |> State.l startLabel
+                    |> State.l nonePressedLabel
+                    {- TODO later when we have more keys to pattern match on: group
+                       these reads. Right now we only have J and K which are luckily
+                       on a single port.
+                    -}
+                    |> State.i {- the group with H,J,K,L,Enter -} "ld a,0xbf"
+                    |> State.i "in a,(0xfe)"
+                    |> State.forEach cases
+                        (\case_ state2 ->
+                            State.initWith state2
+                                |> State.i ("bit " ++ String.fromInt (bit case_.on) ++ ",a")
+                                |> State.i ("jp z," ++ nonePressedLabel)
+                        )
+                    |> State.l anyPressedLabel
+                    {- TODO later when we have more keys to pattern match on: group
+                       these reads. Right now we only have J and K which are luckily
+                       on a single port.
+                    -}
+                    |> State.i {- the group with H,J,K,L,Enter -} "ld a,0xbf"
+                    |> State.i "in a,(0xfe)"
+                    |> State.forEach cases
+                        (\case_ state2 ->
+                            State.initWith state2
+                                |> State.i ("bit " ++ String.fromInt (bit case_.on) ++ ",a")
+                                |> State.i ("jp z," ++ keyLabel onPrefix case_.on)
+                        )
+                    |> State.i ("jp " ++ anyPressedLabel)
+                    |> State.forEach caseBlocks
+                        (\caseBlock state2 ->
+                            State.initWith state2
+                                |> caseBlock
+                        )
+            )
 
 
 keyLabel : String -> KeyPattern -> String

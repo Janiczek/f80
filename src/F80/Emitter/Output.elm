@@ -1,7 +1,7 @@
 module F80.Emitter.Output exposing
     ( Output
     , empty, smush, add, toString, fromList
-    , andThen, andThen2
+    , andThen
     , db, other, code, equ
     , renderText, romCls
     )
@@ -10,10 +10,11 @@ module F80.Emitter.Output exposing
 
 @docs Output
 @docs empty, smush, add, toString, fromList
-@docs andThen, andThen2
+@docs andThen
 @docs db, other, code, equ
 
-Standard library
+
+## Standard library
 
 @docs renderText, romCls
 
@@ -26,9 +27,12 @@ import Set exposing (Set)
 
 type alias Output =
     { equs : Dict String String
-    , mainCode : List String -- This is special: inside emitStmt this will contain the currently emitted code. So it doesn't always mean `main()`.
-    , otherBlocks : Set (List String)
-    , data : List String
+    , -- This is special: inside emitStmt this will contain the currently
+      -- emitted code and needs to be andThen'd properly. So it doesn't always
+      -- mean `main()`.
+      mainCode : List String
+    , otherBlocks : Dict String (List String)
+    , data : Dict String String
     }
 
 
@@ -41,8 +45,10 @@ toString output =
         , F80.Emitter.Util.mainPrologue
         , output.mainCode
         , F80.Emitter.Util.mainEpilogue
-        , List.concat (Set.toList output.otherBlocks)
+        , List.concat (Dict.values output.otherBlocks)
         , output.data
+            |> Dict.toList
+            |> List.map (\( k, v ) -> k ++ " db " ++ v)
         ]
 
 
@@ -50,8 +56,8 @@ smush : Output -> Output -> Output
 smush s1 s2 =
     { equs = Dict.union s1.equs s2.equs
     , mainCode = s1.mainCode ++ s2.mainCode
-    , otherBlocks = Set.union s1.otherBlocks s2.otherBlocks
-    , data = s1.data ++ s2.data
+    , otherBlocks = Dict.union s1.otherBlocks s2.otherBlocks
+    , data = Dict.union s1.data s2.data
     }
 
 
@@ -64,19 +70,19 @@ empty : Output
 empty =
     { equs = Dict.empty
     , mainCode = []
-    , otherBlocks = Set.empty
-    , data = []
+    , otherBlocks = Dict.empty
+    , data = Dict.empty
     }
 
 
 db : String -> String -> Output
 db name value =
-    { empty | data = [ name ++ " db " ++ value ] }
+    { empty | data = Dict.singleton name value }
 
 
-other : List String -> Output
-other asm =
-    { empty | otherBlocks = Set.singleton asm }
+other : String -> List String -> Output
+other name asm =
+    { empty | otherBlocks = Dict.singleton name asm }
 
 
 code : List String -> Output
@@ -96,25 +102,29 @@ renderText =
     { equs = Dict.singleton "AT" "0x16"
     , mainCode = []
     , otherBlocks =
-        Set.singleton
-            [ l "_renderString"
-            , i "ld a, AT"
-            , i "rst 0x10"
-            , i "ld a,l"
-            , i "rst 0x10"
-            , i "ld a,h"
-            , i "rst 0x10"
-
-            --
-            , l "_renderStringLoop"
-            , i "ld a,(de)"
-            , i "cp 0"
-            , i "ret z"
-            , i "rst 0x10"
-            , i "inc de"
-            , i "jr _renderStringLoop"
+        Dict.fromList
+            [ ( "_renderString"
+              , [ l "_renderString"
+                , i "ld a, AT"
+                , i "rst 0x10"
+                , i "ld a,l"
+                , i "rst 0x10"
+                , i "ld a,h"
+                , i "rst 0x10"
+                ]
+              )
+            , ( "_renderStringLoop"
+              , [ l "_renderStringLoop"
+                , i "ld a,(de)"
+                , i "cp 0"
+                , i "ret z"
+                , i "rst 0x10"
+                , i "inc de"
+                , i "jr _renderStringLoop"
+                ]
+              )
             ]
-    , data = []
+    , data = Dict.empty
     }
 
 
@@ -122,8 +132,8 @@ romCls : Output
 romCls =
     { equs = Dict.singleton "ROM_CLS" "0x0daf"
     , mainCode = [ i "call ROM_CLS" ]
-    , otherBlocks = Set.empty
-    , data = []
+    , otherBlocks = Dict.empty
+    , data = Dict.empty
     }
 
 
@@ -137,11 +147,3 @@ andThen f o1 =
     empty
         |> add { o1 | mainCode = [] }
         |> add (f o1.mainCode)
-
-
-andThen2 : (List String -> List String -> Output) -> Output -> Output -> Output
-andThen2 f o1 o2 =
-    empty
-        |> add { o1 | mainCode = [] }
-        |> add { o2 | mainCode = [] }
-        |> add (f o1.mainCode o2.mainCode)

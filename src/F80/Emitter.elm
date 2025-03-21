@@ -3,7 +3,9 @@ module F80.Emitter exposing (emit)
 {-| Prepares assembly for consumption by the PASMO Z80 assembler.
 
 Arguments to functions are passed on the stack.
+Local variables are passed on the stack.
 Function return values are in register A.
+Expressions are emitted to the register A.
 
 -}
 
@@ -15,6 +17,7 @@ import F80.AST as AST
         , Block
         , CallData
         , Decl(..)
+        , DefineVarData
         , Expr(..)
         , FnDeclData
         , GlobalDeclData
@@ -29,164 +32,153 @@ import F80.AST as AST
         )
 import F80.Emitter.Global
 import F80.Emitter.Output as Output exposing (Output)
+import F80.Emitter.State as State exposing (State)
 import F80.Emitter.Util as Util exposing (ctxLabel, i, l)
 import F80.Emitter.WaitForKeypress
+import List.Extra
+import Set
 
 
 emit : Program -> List String
 emit program =
-    program
-        |> List.indexedMap emitDecl
-        |> Output.fromList
+    List.Extra.indexedFoldl
+        (\ix decl outputAndState ->
+            case decl of
+                GlobalDecl data ->
+                    outputAndState
+                        |> State.emit (F80.Emitter.Global.emit data)
+
+                FnDecl data ->
+                    outputAndState
+                        |> State.withContext ("decl_" ++ String.fromInt ix) (emitFnDecl data)
+        )
+        (State.initWith State.empty)
+        program
+        |> Tuple.first
         |> Output.toString
 
 
-emitDecl : Int -> Decl -> Output
-emitDecl ix decl =
-    case decl of
-        GlobalDecl data ->
-            F80.Emitter.Global.emit data
+{-| We assume the args will have been put on the stack during the function calls (emitCallArgs).
+Any usage of the items on the stack will be emitted during emitExpr::Var.
 
-        FnDecl data ->
-            let
-                ctx =
-                    [ String.fromInt ix, "decl" ]
-            in
-            emitFnDecl ctx data
+Here we need to register the param names in `Vars`.
 
-
-emitFnDecl : List String -> FnDeclData -> Output
-emitFnDecl ctx fnData =
+-}
+emitFnDecl : FnDeclData -> State -> ( Output, State )
+emitFnDecl fnData state =
     let
         isMain =
             fnData.name == AST.mainFnName
 
-        blockOutput =
-            emitBlock { isMain = isMain } (fnData.name :: ctx) fnData.body
+        blockFn : (State -> ( Output, State )) -> State -> ( Output, State )
+        blockFn fn s =
+            if isMain then
+                fn s
+
+            else
+                State.initWith s
+                    |> State.otherBlock fnData.name fn
     in
-    if isMain then
-        -- We know main has 0 args, so this is simplified
-        blockOutput
-            |> Output.andThen
-                (\blockCode ->
-                    Output.code
-                        (List.concat
-                            [ [ l fnData.name ]
-                            , blockCode
-                            ]
+    State.initWith state
+        |> State.withContext fnData.name
+            (\stateFn ->
+                State.initWith stateFn
+                    |> State.withFrame fnData.name
+                        (\stateFnFrame ->
+                            State.initWith stateFnFrame
+                                |> State.forEach fnData.params (\param -> State.lift_SS_SOS (State.addLocalVar param))
+                                |> State.lift_SOS_OSOS
+                                    (blockFn
+                                        (\s ->
+                                            State.initWith s
+                                                |> State.l fnData.name
+                                                |> State.emit (emitBlock { isMain = isMain } fnData.body)
+                                        )
+                                    )
                         )
-                )
-
-    else
-        Output.andThen2
-            (\paramsCode blockCode ->
-                Output.other
-                    (List.concat
-                        [ [ l fnData.name ]
-                        , paramsCode
-                        , blockCode
-
-                        -- all functions have been lowered to explicitly have returns. we don't need to add `ret` here.
-                        ]
-                    )
             )
-            (emitFnDeclParams ctx fnData.params)
-            blockOutput
-
-
-emitFnDeclParams : List String -> List Param -> Output
-emitFnDeclParams ctx params =
-    params
-        |> List.indexedMap
-            (\ix param ->
-                case ix of
-                    0 ->
-                        Output.code [ i "pop af" ]
-
-                    -- This is ineffective: we should be able to use the c register on its own, but we're throwing it away:
-                    1 ->
-                        Output.code [ i "pop bc" ]
-
-                    2 ->
-                        Output.code [ i "pop de" ]
-
-                    3 ->
-                        Output.code [ i "pop hl" ]
-
-                    _ ->
-                        Debug.todo <| "emitFnDeclParams: arity " ++ String.fromInt ix
-            )
-        |> Output.fromList
 
 
 {-| These will emit their ASM blocks in the Output.mainCode field. That doesn't mean it's meant to go into `main()`!
 -}
-emitStmt : { isMain : Bool } -> List String -> Int -> Stmt -> Output
-emitStmt isMain parentCtx ix stmt =
+emitStmt : { isMain : Bool } -> Int -> Stmt -> State -> ( Output, State )
+emitStmt isMain ix stmt state =
+    State.initWith state
+        |> State.withContext (String.fromInt ix)
+            (\stateIx ->
+                case stmt of
+                    WaitForKeypress data ->
+                        F80.Emitter.WaitForKeypress.emit (emitBlock isMain) data stateIx
+
+                    Loop block ->
+                        let
+                            label =
+                                Util.ctxLabel stateIx.ctx
+                        in
+                        State.initWith stateIx
+                            |> State.withContext "loop"
+                                (\stateIxLoop ->
+                                    State.initWith stateIxLoop
+                                        |> State.l label
+                                        |> State.emit (emitBlock isMain block)
+                                        |> State.i ("jp " ++ label)
+                                )
+
+                    If ifData ->
+                        emitIfStmt isMain ifData stateIx
+
+                    DefineConst defConst ->
+                        emitDefineVar defConst stateIx
+
+                    DefineLet defLet ->
+                        emitDefineVar defLet stateIx
+
+                    Assign assignData ->
+                        emitAssign assignData
+
+                    CallStmt callData ->
+                        emitCall stateIx callData
+
+                    Return maybeExpr ->
+                        emitReturn isMain stateIx maybeExpr
+            )
+
+
+emitDefineVar : DefineVarData -> State -> ( Output, State )
+emitDefineVar defVar state =
+    State.initWith state
+        |> State.emit (emitExpr defVar.value)
+        |> State.i "push af"
+        |> State.lift_SS_OSOS (State.addLocalVar defVar.name)
+
+
+emitReturn : { isMain : Bool } -> State -> Maybe Expr -> ( Output, State )
+emitReturn { isMain } state maybeExpr =
     let
-        ctx =
-            String.fromInt ix :: parentCtx
-    in
-    case stmt of
-        WaitForKeypress data ->
-            F80.Emitter.WaitForKeypress.emit ctx (emitBlock isMain) data
-
-        Loop block ->
-            let
-                label =
-                    Util.ctxLabel ctx
-            in
-            Output.code [ l label ]
-                |> Output.add (emitBlock isMain ("loop" :: ctx) block)
-                |> Output.add (Output.code [ i <| "jp " ++ label ])
-
-        If ifData ->
-            emitIfStmt isMain ctx ifData
-
-        DefineConst defConst ->
-            Debug.todo <| "emitStmt defineConst: " ++ Debug.toString defConst
-
-        DefineLet defLet ->
-            Debug.todo <| "emitStmt defineLet: " ++ Debug.toString defLet
-
-        Assign assignData ->
-            emitAssign assignData
-
-        CallStmt callData ->
-            emitCall ctx callData
-
-        Return maybeExpr ->
-            emitReturn isMain ctx maybeExpr
-
-
-emitReturn : { isMain : Bool } -> List String -> Maybe Expr -> Output
-emitReturn { isMain } ctx maybeExpr =
-    let
+        return : ( Output, State ) -> ( Output, State )
         return =
             if isMain then
-                Output.code [ i "jp _end" ]
+                State.i "jp _end"
 
             else
-                Output.code [ i "ret" ]
+                State.i "ret"
     in
     case maybeExpr of
         Nothing ->
-            return
+            State.initWith state
+                |> return
 
         Just expr ->
-            {- We emit the code of the expr, even if the main() return ultimately
-               throws it away. That's because we can have side effects in our
-               expressions!
-            -}
-            emitExpr ("return" :: ctx) expr
-                |> Output.add return
+            State.initWith state
+                |> State.emit (emitExpr expr)
+                |> return
 
 
-emitIfStmt : { isMain : Bool } -> List String -> IfStmtData -> Output
-emitIfStmt isMain ctx ifData =
+emitIfStmt : { isMain : Bool } -> IfStmtData -> State -> ( Output, State )
+emitIfStmt isMain ifData state =
     let
         ctxLabel =
-            Util.ctxLabel ctx
+            Util.ctxLabel state.ctx
 
         labelPrefix =
             "_ifstmt_" ++ ctxLabel ++ "_"
@@ -196,78 +188,83 @@ emitIfStmt isMain ctx ifData =
     in
     case ifData.else_ of
         Nothing ->
-            emitExpr ("cond" :: ctx) ifData.cond
-                |> Output.add
-                    (Output.code
-                        [ i "cp 255"
-                        , i <| "jp nz," ++ endLabel
-                        ]
-                    )
-                |> Output.add (emitBlock isMain ("then" :: ctx) ifData.then_)
-                |> Output.add (Output.code [ l endLabel ])
+            State.initWith state
+                |> State.withContext "cond" (emitExpr ifData.cond)
+                |> State.i "cp 255"
+                |> State.i ("jp nz," ++ endLabel)
+                -- then:
+                |> State.withContext "then" (emitBlock isMain ifData.then_)
+                -- end:
+                |> State.l endLabel
 
         Just else_ ->
             let
                 elseLabel =
                     labelPrefix ++ "else"
             in
-            emitExpr ("cond" :: ctx) ifData.cond
-                |> Output.add
-                    (Output.code
-                        [ i "cp 255"
-                        , i <| "jp nz," ++ elseLabel
-                        ]
-                    )
-                |> Output.add (emitBlock isMain ("then" :: ctx) ifData.then_)
-                |> Output.add
-                    (Output.code
-                        [ i <| "jp " ++ endLabel
-                        , l elseLabel
-                        ]
-                    )
-                |> Output.add (emitBlock isMain ("else" :: ctx) else_)
-                |> Output.add (Output.code [ l endLabel ])
+            State.initWith state
+                |> State.withContext "cond" (emitExpr ifData.cond)
+                |> State.i "cp 255"
+                |> State.i ("jp nz," ++ elseLabel)
+                -- then:
+                |> State.withContext "then" (emitBlock isMain ifData.then_)
+                |> State.i ("jp " ++ endLabel)
+                -- else:
+                |> State.l elseLabel
+                |> State.withContext "else" (emitBlock isMain else_)
+                -- end:
+                |> State.l endLabel
 
 
-emitBlock : { isMain : Bool } -> List String -> Block -> Output
-emitBlock isMain ctx block =
-    block
-        |> List.indexedMap (emitStmt isMain ctx)
-        |> Output.fromList
+emitBlock : { isMain : Bool } -> Block -> State -> ( Output, State )
+emitBlock isMain block state =
+    List.Extra.indexedFoldl
+        (\ix stmt outputAndState ->
+            outputAndState
+                |> State.emit (emitStmt isMain ix stmt)
+        )
+        (State.initWith state)
+        block
 
 
-emitAssign : AssignData -> Output
+emitAssign : AssignData -> ( Output, State )
 emitAssign assignData =
     Debug.todo "emitAssign"
 
 
-emitCall : List String -> CallData -> Output
-emitCall ctx callData =
+emitCall : State -> CallData -> ( Output, State )
+emitCall state callData =
     case callData.fn of
         "ROM.clearScreen" ->
-            Output.romCls
+            ( Output.romCls, state )
 
         "Render.text" ->
-            emitCallRenderText callData
+            ( emitCallRenderText callData, state )
 
         _ ->
-            emitCallArgs ctx callData.args
+            let
+                ( argsOutput, newState ) =
+                    emitCallArgs state callData.args
+            in
+            ( argsOutput
                 |> Output.add
                     (Output.code
-                        -- This will work for global functions, not for lambda exprs. That's OK, we don't have lambdas (yet) :)
                         [ i <| "call " ++ callData.fn ]
                     )
-
-
-emitCallArgs : List String -> List Expr -> Output
-emitCallArgs ctx args =
-    args
-        |> List.indexedMap
-            (\ix arg ->
-                emitExpr (String.fromInt ix :: "arg" :: ctx) arg
-                    |> Output.add (Output.code [ i "push af" ])
+            , newState
             )
-        |> Output.fromList
+
+
+emitCallArgs : State -> List Expr -> ( Output, State )
+emitCallArgs state args =
+    List.Extra.indexedFoldl
+        (\ix arg outputAndState ->
+            outputAndState
+                |> State.emit (emitExpr arg)
+                |> State.i "push af"
+        )
+        (State.initWith state)
+        args
 
 
 {-| Clobbers DE,HL. If that causes issues, TODO clean up after ourselves?
@@ -344,165 +341,169 @@ renderTextXYHL x y =
 
 {-| Loads the value into the register A.
 -}
-emitExpr : List String -> Expr -> Output
-emitExpr ctx expr =
-    case expr of
-        Int n ->
-            Output.code [ i <| "ld a," ++ String.fromInt n ]
-
-        Var var ->
-            -- TODO this is probably too simplistic. We might need to split to
-            -- Global and Local vars, or have a way of knowing which one we're
-            -- looking at.
-            -- The `ld a,var` approach should work for globals since the var is a label.
-            Output.code [ i <| "ld a," ++ var ]
-
-        String _ ->
-            Debug.todo "emitExpr String - this shouldn't have happened - we hoisted all string literals to global string constants"
-
-        Bool b ->
-            Output.code
-                [ i <|
-                    "ld a,"
-                        ++ String.fromInt
-                            (if b then
-                                255
-
-                             else
-                                0
-                            )
-                ]
-
-        BinOp data ->
-            case data.op of
-                BOp_Add ->
-                    -- a = R
-                    emitExpr ("right" :: "binop" :: ctx) data.right
-                        |> Output.add (Output.code [ i "push af" ])
-                        |> Output.add
-                            -- a = L
-                            (emitExpr ("left" :: "binop" :: ctx) data.left)
-                        |> Output.add
-                            (Output.code
-                                [ i "pop bc" -- b = R
-                                , i "add b" -- a = L + R
-                                ]
-                            )
-
-                BOp_Sub ->
-                    -- a = R
-                    emitExpr ("right" :: "binop" :: ctx) data.right
-                        |> Output.add (Output.code [ i "push af" ])
-                        |> Output.add
-                            -- a = L
-                            (emitExpr ("left" :: "binop" :: ctx) data.left)
-                        |> Output.add
-                            (Output.code
-                                [ i "pop bc" -- b = R
-                                , i "sub b" -- a = L - R
-                                ]
-                            )
-
-                BOp_Gt ->
-                    let
-                        ctxLabel =
-                            Util.ctxLabel ctx
-
-                        prefix =
-                            "_gt_" ++ ctxLabel ++ "_"
-
-                        endLabel =
-                            prefix ++ "end"
-
-                        onGTLabel =
-                            prefix ++ "onGT"
-                    in
-                    -- a = L
-                    emitExpr ("left" :: "binop" :: ctx) data.left
-                        |> Output.add (Output.code [ i "push af" ])
-                        |> Output.add
-                            -- a = R
-                            (emitExpr ("right" :: "binop" :: ctx) data.right)
-                        |> Output.add
-                            (Output.code
-                                [ i "pop bc" -- b = L
-                                , i "cp b" -- carry = L <= R
-                                , i <| "jp nc," ++ onGTLabel
-
-                                -- L <= R
-                                , i "ld a,0"
-                                , i <| "jp " ++ endLabel
-                                , l onGTLabel -- L > R
-                                , i "ld a,255"
-                                , l endLabel
-                                ]
-                            )
-
-                BOp_Lt ->
-                    let
-                        ctxLabel =
-                            Util.ctxLabel ctx
-
-                        prefix =
-                            "_lt_" ++ ctxLabel ++ "_"
-
-                        endLabel =
-                            prefix ++ "end"
-
-                        onLTLabel =
-                            prefix ++ "onLT"
-                    in
-                    -- a = R
-                    emitExpr ("right" :: "binop" :: ctx) data.right
-                        |> Output.add (Output.code [ i "push af" ])
-                        |> Output.add
-                            -- a = L
-                            (emitExpr ("left" :: "binop" :: ctx) data.left)
-                        |> Output.add
-                            (Output.code
-                                [ i "pop bc" -- b = L
-                                , i "cp b" -- carry = L >= R
-                                , i <| "jp nc," ++ onLTLabel
-
-                                -- L >= R
-                                , i "ld a,0"
-                                , i <| "jp " ++ endLabel
-                                , l onLTLabel -- L < R
-                                , i "ld a,255"
-                                , l endLabel
-                                ]
-                            )
-
-        UnaryOp data ->
-            emitExpr ("unaryop" :: ctx) data.expr
-                |> Output.add
-                    (Output.code
-                        [ i <|
-                            case data.op of
-                                UOp_Neg ->
-                                    "neg"
-
-                                UOp_Not ->
-                                    -- We're using `neg` for boolean negation too. It flips between 0 and 255.
-                                    "neg"
-                        ]
+emitExpr : Expr -> State -> ( Output, State )
+emitExpr expr state =
+    let
+        ( output, finalState ) =
+            case expr of
+                Int n ->
+                    ( Output.code [ i <| "ld a," ++ String.fromInt n ]
+                    , state
                     )
 
-        CallExpr data ->
-            emitCall ctx data
+                Var var ->
+                    ( if Set.member var state.globalVars then
+                        Output.code [ i <| "ld a," ++ var ]
 
-        IfExpr data ->
-            emitIfExpr ctx data
+                      else
+                        case State.getVar var state of
+                            Nothing ->
+                                Debug.todo <| "emitExpr: var " ++ var ++ " not found"
+
+                            Just { stackOffset } ->
+                                Output.code
+                                    [ i <| "ld ix," ++ String.fromInt (State.getCurrentFrameSize state)
+                                    , i "add ix,sp"
+                                    , i <| "ld a,(ix-" ++ String.fromInt stackOffset ++ ")"
+                                    ]
+                    , state
+                    )
+
+                String _ ->
+                    Debug.todo "emitExpr String - this shouldn't have happened - we hoisted all string literals to global string constants"
+
+                Bool b ->
+                    ( Output.code
+                        [ i <|
+                            "ld a,"
+                                ++ String.fromInt
+                                    (if b then
+                                        255
+
+                                     else
+                                        0
+                                    )
+                        ]
+                    , state
+                    )
+
+                BinOp data ->
+                    let
+                        fn : State -> ( Output, State )
+                        fn stateBinop =
+                            case data.op of
+                                BOp_Add ->
+                                    State.initWith stateBinop
+                                        |> {- a = R -} State.withContext "right" (emitExpr data.right)
+                                        |> State.i "push af"
+                                        |> {- a = L -} State.withContext "left" (emitExpr data.left)
+                                        |> {- b = R -} State.i "pop bc"
+                                        |> {- a = L + R -} State.i "add b"
+
+                                BOp_Sub ->
+                                    State.initWith stateBinop
+                                        |> {- a = R -} State.withContext "right" (emitExpr data.right)
+                                        |> State.i "push af"
+                                        |> {- a = L -} State.withContext "left" (emitExpr data.left)
+                                        |> {- b = R -} State.i "pop bc"
+                                        |> {- a = L - R -} State.i "sub b"
+
+                                BOp_Gt ->
+                                    let
+                                        ctxLabel =
+                                            Util.ctxLabel stateBinop.ctx
+
+                                        prefix =
+                                            "_gt_" ++ ctxLabel ++ "_"
+
+                                        endLabel =
+                                            prefix ++ "end"
+
+                                        onGTLabel =
+                                            prefix ++ "onGT"
+                                    in
+                                    State.initWith stateBinop
+                                        |> {- a = L -} State.withContext "left" (emitExpr data.left)
+                                        |> State.i "push af"
+                                        |> {- a = R -} State.withContext "right" (emitExpr data.right)
+                                        |> {- b = L -} State.i "pop bc"
+                                        |> {- carry = L <= R -} State.i "cp b"
+                                        |> State.i ("jp nc," ++ onGTLabel)
+                                        -- L <= R:
+                                        |> State.i "ld a,0"
+                                        |> State.i ("jp " ++ endLabel)
+                                        -- L > R:
+                                        |> State.l onGTLabel
+                                        |> State.i "ld a,255"
+                                        |> State.l endLabel
+
+                                BOp_Lt ->
+                                    let
+                                        ctxLabel =
+                                            Util.ctxLabel stateBinop.ctx
+
+                                        prefix =
+                                            "_lt_" ++ ctxLabel ++ "_"
+
+                                        endLabel =
+                                            prefix ++ "end"
+
+                                        onLTLabel =
+                                            prefix ++ "onLT"
+                                    in
+                                    State.initWith stateBinop
+                                        |> {- a = R -} State.withContext "right" (emitExpr data.right)
+                                        |> State.i "push af"
+                                        |> {- a = L -} State.withContext "left" (emitExpr data.left)
+                                        |> {- b = R -} State.i "pop bc"
+                                        |> {- carry = L >= R -} State.i "cp b"
+                                        |> State.i ("jp nc," ++ onLTLabel)
+                                        -- L >= R:
+                                        |> State.i "ld a,0"
+                                        |> State.i ("jp " ++ endLabel)
+                                        -- L < R:
+                                        |> State.l onLTLabel
+                                        |> State.i "ld a,255"
+                                        |> State.l endLabel
+                    in
+                    State.initWith state
+                        |> State.withContext "binop" fn
+
+                UnaryOp data ->
+                    let
+                        fn : State -> ( Output, State )
+                        fn stateUnaryop =
+                            case data.op of
+                                UOp_Neg ->
+                                    State.initWith stateUnaryop
+                                        |> State.emit (emitExpr data.expr)
+                                        |> State.i "neg"
+
+                                UOp_Not ->
+                                    State.initWith stateUnaryop
+                                        |> State.emit (emitExpr data.expr)
+                                        |> State.i "neg"
+                    in
+                    State.initWith state
+                        |> State.withContext "unaryop" fn
+
+                CallExpr data ->
+                    emitCall state data
+
+                IfExpr data ->
+                    emitIfExpr state data
+    in
+    ( output, finalState )
 
 
 {-| The result goes to the A register.
 Otherwise this is pretty similar to the else-ful part of emitIfStmt
 -}
-emitIfExpr : List String -> IfExprData -> Output
-emitIfExpr ctx data =
+emitIfExpr : State -> IfExprData -> ( Output, State )
+emitIfExpr state data =
     let
         ctxLabel =
-            Util.ctxLabel ctx
+            Util.ctxLabel state.ctx
 
         labelPrefix =
             "_ifexpr_" ++ ctxLabel ++ "_"
@@ -513,19 +514,16 @@ emitIfExpr ctx data =
         elseLabel =
             labelPrefix ++ "else"
     in
-    emitExpr ("cond" :: ctx) data.cond
-        |> Output.add
-            (Output.code
-                [ i "cp 255"
-                , i <| "jp nz," ++ elseLabel
-                ]
+    State.initWith state
+        |> State.withContext "if"
+            (\stateIf ->
+                State.initWith stateIf
+                    |> State.withContext "cond" (emitExpr data.cond)
+                    |> State.i "cp 255"
+                    |> State.i ("jp nz," ++ elseLabel)
+                    |> State.withContext "then" (emitExpr data.then_)
+                    |> State.i ("jp " ++ endLabel)
+                    |> State.l elseLabel
+                    |> State.withContext "else" (emitExpr data.else_)
+                    |> State.l endLabel
             )
-        |> Output.add (emitExpr ("then" :: ctx) data.then_)
-        |> Output.add
-            (Output.code
-                [ i <| "jp " ++ endLabel
-                , l elseLabel
-                ]
-            )
-        |> Output.add (emitExpr ("else" :: ctx) data.else_)
-        |> Output.add (Output.code [ l endLabel ])

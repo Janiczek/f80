@@ -2,14 +2,16 @@ module F80.Emitter.Global exposing (emit)
 
 import F80.AST exposing (GlobalDeclData, Value(..))
 import F80.Emitter.Output as Output exposing (Output)
+import F80.Emitter.State as State exposing (State)
 import F80.Emitter.Util
 
 
-emit : GlobalDeclData -> Output
-emit globalData =
+emit : GlobalDeclData -> State -> ( Output, State )
+emit globalData state =
     let
         default () =
-            Output.db globalData.name (emitValue globalData.value)
+            State.initWith state
+                |> State.addGlobalVar globalData.name (emitValue globalData.value)
     in
     case globalData.value of
         VInt _ ->
@@ -31,17 +33,17 @@ emit globalData =
             default ()
 
         VString s ->
-            Output.db globalData.name (emitValue globalData.value)
-                -- Add EQU for the string length
-                |> Output.add
-                    (Output.equ
-                        (F80.Emitter.Util.globalStringLengthLabel globalData.name)
-                        (String.fromInt (String.length s))
-                    )
+            State.initWith state
+                |> State.addGlobalVar globalData.name (emitValue globalData.value)
+                |> -- Add EQU for the string length
+                   State.equ
+                    (F80.Emitter.Util.globalStringLengthLabel globalData.name)
+                    (String.fromInt (String.length s))
 
         VGlobal otherName ->
             -- Use EQU so that we don't allocate the same data multiple times
-            Output.equ globalData.name otherName
+            State.initWith state
+                |> State.equ globalData.name otherName
 
 
 emitValue : Value -> String

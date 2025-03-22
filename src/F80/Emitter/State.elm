@@ -1,19 +1,23 @@
 module F80.Emitter.State exposing
     ( State, empty, mapState, initWith, forEach
-    , getVar, getCurrentFrameSize
+    , Frame, FrameType(..)
+    , stackItemSize
+    , getVar, currentBaseOffset, countCurrentLocals
     , lift_SS_SOS, lift_SOS_OSOS, lift_SS_OSOS
     , withContext
     , withFrame
     , addLocalVar
     , addGlobalVar
-    , i, l, equ, add
+    , i, l, equ, add, push, pop, cleanupStack
     , emit, otherBlock
     )
 
 {-|
 
 @docs State, empty, mapState, initWith, forEach
-@docs getVar, getCurrentFrameSize
+@docs Frame, FrameType
+@docs stackItemSize
+@docs getVar, currentBaseOffset, countCurrentLocals
 @docs lift_SS_SOS, lift_SOS_OSOS, lift_SS_OSOS
 
 
@@ -39,14 +43,17 @@ module F80.Emitter.State exposing
 
 # Assembly instructions
 
-@docs push, pop, i, l, equ, add
+@docs i, l, equ, add, push, pop, cleanupStack
 @docs emit, otherBlock
 
 -}
 
 import Dict exposing (Dict)
+import F80.AST exposing (Param)
 import F80.Emitter.Output as Output exposing (Output)
 import F80.Emitter.Util as Util exposing (i)
+import Html.Attributes exposing (id)
+import List.Extra
 import NonemptyList exposing (NonemptyList)
 import Set exposing (Set)
 
@@ -60,8 +67,17 @@ type alias State =
 
 type alias Frame =
     { id : String -- not strictly necessary, but helpful for debugging
-    , locals : Dict String Int -- local vars for this stack frame, with the offset from the base pointer
+    , locals : Dict String { stackOffset : Int, isArg : Bool } -- local vars for this stack frame, with the offset from the base pointer
+    , stackUsedOutsideLocals : Int -- eg. args for a function we'll be calling
+    , type_ : FrameType
     }
+
+
+type FrameType
+    = Root
+    | MainFn
+    | NonMainFn
+    | Block
 
 
 {-| 2 because we need to push `af` but we only use `a`
@@ -78,6 +94,8 @@ empty =
         NonemptyList.singleton
             { id = "__root"
             , locals = Dict.empty
+            , type_ = Root
+            , stackUsedOutsideLocals = 0
             }
     , globalVars = Set.empty
     }
@@ -163,11 +181,18 @@ withContext contextName fn ( output, state ) =
 -- Frames
 
 
-withFrame : String -> (State -> ( Output, State )) -> ( Output, State ) -> ( Output, State )
-withFrame id fn ( o1, s1 ) =
+withFrame :
+    { name : String
+    , params : List Param
+    , type_ : FrameType
+    }
+    -> (State -> ( Output, State ))
+    -> ( Output, State )
+    -> ( Output, State )
+withFrame frameData fn ( o1, s1 ) =
     let
         s2 =
-            startFrame id s1
+            startFrame frameData s1
 
         ( o3, s3 ) =
             fn s2
@@ -177,12 +202,33 @@ withFrame id fn ( o1, s1 ) =
     )
 
 
-startFrame : String -> State -> State
-startFrame id state =
+startFrame :
+    { name : String
+    , type_ : FrameType
+    , params : List Param
+    }
+    -> State
+    -> State
+startFrame { name, type_, params } state =
     { state
         | stackFrames =
             state.stackFrames
-                |> NonemptyList.cons { id = id, locals = Dict.empty }
+                |> NonemptyList.cons
+                    { id = name
+                    , locals =
+                        params
+                            |> List.indexedMap
+                                (\ix param ->
+                                    ( param
+                                    , { stackOffset = ix * stackItemSize + 1
+                                      , isArg = True
+                                      }
+                                    )
+                                )
+                            |> Dict.fromList
+                    , type_ = type_
+                    , stackUsedOutsideLocals = 0
+                    }
     }
 
 
@@ -210,8 +256,8 @@ This assumes you've already pushed this onto the stack:
     |> State.addLocalVar "a"
 
 -}
-addLocalVar : String -> State -> State
-addLocalVar name state =
+addLocalVar : { isArg : Bool } -> String -> State -> State
+addLocalVar { isArg } name state =
     { state
         | stackFrames =
             state.stackFrames
@@ -224,10 +270,16 @@ addLocalVar name state =
                                         case maybeStack of
                                             Nothing ->
                                                 let
+                                                    frameSize =
+                                                        baseOffset frame
+
                                                     stackOffset =
-                                                        getCurrentFrameSize_ frame + 1
+                                                        frameSize + 1
                                                 in
-                                                Just stackOffset
+                                                Just
+                                                    { stackOffset = stackOffset
+                                                    , isArg = isArg
+                                                    }
 
                                             Just old ->
                                                 "BUG: shadowing of local {VAR} in frame {FRAME} (context: {CTX}). Should have been caught by the type checker"
@@ -305,18 +357,18 @@ otherBlock label fn ( output, state ) =
     )
 
 
-getVar : String -> State -> Maybe { stackOffset : Int }
+getVar : String -> State -> Maybe { stackOffset : Int, isArg : Bool }
 getVar name state =
     getVarHelp name state.stackFrames
 
 
 {-| A linear walk through the frames
 -}
-getVarHelp : String -> NonemptyList Frame -> Maybe { stackOffset : Int }
+getVarHelp : String -> NonemptyList Frame -> Maybe { stackOffset : Int, isArg : Bool }
 getVarHelp name ( f, fs ) =
     case Dict.get name f.locals of
-        Just stackOffset ->
-            Just { stackOffset = stackOffset }
+        Just data ->
+            Just data
 
         Nothing ->
             case NonemptyList.fromList fs of
@@ -327,15 +379,94 @@ getVarHelp name ( f, fs ) =
                     getVarHelp name rest
 
 
-getCurrentFrameSize : State -> Int
-getCurrentFrameSize state =
+currentBaseOffset : State -> Int
+currentBaseOffset =
+    onCurrentFrame baseOffset
+
+
+onCurrentFrame : (Frame -> a) -> State -> a
+onCurrentFrame fn state =
+    state.stackFrames
+        |> NonemptyList.head
+        |> fn
+
+
+baseOffset : Frame -> Int
+baseOffset frame =
     let
-        ( frame, _ ) =
-            state.stackFrames
+        correctForReturnAddress =
+            case frame.type_ of
+                Root ->
+                    0
+
+                MainFn ->
+                    0
+
+                NonMainFn ->
+                    -- Calling this function via `call` has caused the return address to be pushed on the stack
+                    -- So the stack looks like [...args, return address, ...locals]
+                    1
+
+                Block ->
+                    0
     in
-    getCurrentFrameSize_ frame
+    (Dict.size frame.locals + correctForReturnAddress) * stackItemSize + frame.stackUsedOutsideLocals
 
 
-getCurrentFrameSize_ : Frame -> Int
-getCurrentFrameSize_ frame =
-    Dict.size frame.locals * stackItemSize
+countCurrentLocals : State -> Int
+countCurrentLocals =
+    onCurrentFrame countLocals
+
+
+countLocals : Frame -> Int
+countLocals frame =
+    frame.locals
+        |> Dict.values
+        |> List.Extra.count (\local -> not local.isArg)
+
+
+push : String -> { countAsExtra : Bool } -> ( Output, State ) -> ( Output, State )
+push name { countAsExtra } =
+    if countAsExtra then
+        mapCurrentFrame (\frame -> { frame | stackUsedOutsideLocals = frame.stackUsedOutsideLocals + stackItemSize })
+            >> i ("push " ++ name)
+
+    else
+        i ("push " ++ name)
+
+
+pop : String -> { countAsExtra : Bool } -> ( Output, State ) -> ( Output, State )
+pop name { countAsExtra } =
+    if countAsExtra then
+        mapCurrentFrame (\frame -> { frame | stackUsedOutsideLocals = frame.stackUsedOutsideLocals - stackItemSize })
+            >> i ("pop " ++ name)
+
+    else
+        i ("pop " ++ name)
+
+
+cleanupStack : Int -> ( Output, State ) -> ( Output, State )
+cleanupStack n =
+    if n > 0 then
+        let
+            actualN =
+                n * stackItemSize
+        in
+        mapCurrentFrame (\frame -> { frame | stackUsedOutsideLocals = frame.stackUsedOutsideLocals - actualN })
+            >> i ("ld ix," ++ String.fromInt actualN)
+            >> i "add ix,sp"
+            >> i "ld sp,ix"
+
+    else
+        identity
+
+
+mapCurrentFrame : (Frame -> Frame) -> ( Output, State ) -> ( Output, State )
+mapCurrentFrame fn =
+    mapState
+        (\s ->
+            { s
+                | stackFrames =
+                    NonemptyList.mapHead fn s.stackFrames
+            }
+        )

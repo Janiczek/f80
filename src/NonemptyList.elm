@@ -5,8 +5,10 @@ module NonemptyList exposing
     , fromList
     , head
     , length
+    , map
     , mapHead
     , singleton
+    , sum
     , tail
     )
 
@@ -58,3 +60,13 @@ tail ( _, xs ) =
 mapHead : (a -> a) -> NonemptyList a -> NonemptyList a
 mapHead f ( x, xs ) =
     ( f x, xs )
+
+
+map : (a -> b) -> NonemptyList a -> NonemptyList b
+map f ( x, xs ) =
+    ( f x, List.map f xs )
+
+
+sum : NonemptyList Int -> Int
+sum ( x, xs ) =
+    x + List.sum xs

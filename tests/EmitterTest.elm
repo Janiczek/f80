@@ -50,6 +50,26 @@ expectEqualMultiline expected actual =
             )
 
 
+removeComments : String -> String
+removeComments asm =
+    asm
+        |> String.lines
+        |> List.map
+            (\s ->
+                case String.split ";" s of
+                    [] ->
+                        ""
+
+                    [ x ] ->
+                        x
+
+                    code :: _ ->
+                        code
+                            |> String.trimRight
+            )
+        |> String.join "\n"
+
+
 testEmit : String -> String -> Test
 testEmit source expected =
     Test.test ("Emitting: " ++ source) <|
@@ -61,9 +81,19 @@ testEmit source expected =
                         |> F80.Lower.AddImplicitReturns.add
                         |> F80.Emitter.emit
                         |> String.join "\n"
+                        {-
+                           |> (\s ->
+                                   let
+                                       _ =
+                                           Debug.log s "actual"
+                                   in
+                                   s
+                              )
+                        -}
                         |> expectEqualMultiline
                             (expected
                                 |> String.trim
+                                |> removeComments
                             )
 
                 Err err ->
@@ -79,22 +109,80 @@ suite =
         , complex
         ]
 
+
 complex : Test
 complex =
     Test.describe "complex"
-        [ Test.todo
+        [ testEmit
             """
 main() {
-    const x = 2
-    let y = 3
+    const x = 1
+    let y = 2
     return fn(y,x)
 }
 fn(a,b) {
-    const c = 2
-    return c * a + b // (2 * 3) + 2 = 8
+    const c = 3
+    const d = 4
+    return a + b + c + d
 }
             """
-            ]
+            """
+org 0x8000
+main:
+    ld a,1
+    push af     ; -> stack = x         (offset of x = 1)
+    ld a,2
+    push af     ; -> stack = x,y       (offset of y = 3)
+    ld ix,4
+    add ix,sp
+    ld a,(ix-3) ; y has offset 3
+    push af     ; -> stack = x,y,Y     (not tracking offsets for args here)
+    ld ix,6
+    add ix,sp
+    ld a,(ix-1) ; x has offset 1
+    push af     ; -> stack = x,y,Y,X   (not tracking offsets for args here)
+    call fn
+    ld ix,4     ; cleanup 2 args
+    add ix,sp
+    ld sp,ix    ; -> stack = x,y
+    jp _end
+_end:
+    jp _end
+fn:             ; -> stack = A(=Y),B(=X),RET, our base offset is 6 (for now)
+    ld a,3
+    push af     ; -> stack = A,B,RET,c   (offset of c = 7)
+    ld a,4
+    push af     ; -> stack = A,B,RET,c,d (offset of d = 9)
+    ld ix,10
+    add ix,sp
+    ld a,(ix-9) ; d has offset 9
+    push af     ; -> stack = A,B,RET,c,d,D
+    ld ix,12
+    add ix,sp
+    ld a,(ix-7) ; c has offset 7
+    push af     ; -> stack = A,B,RET,c,d,D,C
+    ld ix,14
+    add ix,sp
+    ld a,(ix-3) ; b has offset 3
+    push af     ; -> stack = A,B,RET,c,d,D,C,B
+    ld ix,16
+    add ix,sp
+    ld a,(ix-1) ; a has offset 1
+    pop bc      ; -> stack = A,B,RET,c,d,D,C
+    add b
+    pop bc      ; -> stack = A,B,RET,c,d,D
+    add b
+    pop bc      ; -> stack = A,B,RET,c,d
+    add b
+    ld ix,4     ; cleanup 2 locals
+    add ix,sp
+    ld sp,ix    ; -> stack = A,B,RET
+    ret
+            """
+        , Test.todo "multiple function calls (next to each other)"
+        , Test.todo "multiple function calls (nested)"
+        ]
+
 
 stmts : Test
 stmts =
@@ -144,7 +232,9 @@ main:
 _end:
     jp _end
             """
+        , Test.todo "shadowing const inside a loop"
         ]
+
 
 lets : Test
 lets =
@@ -181,7 +271,6 @@ _end:
     jp _end
             """
         ]
-
 
 
 callStmts : Test
@@ -235,19 +324,21 @@ fn(a){
     return a
 }
             """
-            -- TODO optimize away ld a,a
             """
 org 0x8000
 main:
     ld a,1
-    push af
+    push af      ; -> stack = 1  (not tracking offsets for args here)
     call fn
+    ld ix,2      ; -> stack = <empty>
+    add ix,sp
+    ld sp,ix
 _end:
     jp _end
-fn:
-    ld ix,2
+fn:              ; -> stack = A(=1),RET, our base offset is 4, offset of a = 1
+    ld ix,4
     add ix,sp
-    ld a,(ix-1)
+    ld a,(ix-1)  ; a has offset 1
     ret
             """
         ]
@@ -957,15 +1048,18 @@ fn(a){
 org 0x8000
 main:
     ld a,1
-    push af
+    push af      ; -> stack = 1  (not tracking offsets for args here)
     call fn
+    ld ix,2      ; -> stack = <empty>
+    add ix,sp
+    ld sp,ix
     jp _end
 _end:
     jp _end
-fn:
-    ld ix,2
+fn:              ; -> stack = A(=1),RET, our base offset is 4, offset of a = 1
+    ld ix,4
     add ix,sp
-    ld a,(ix-1)
+    ld a,(ix-1)  ; a has offset 1
     ret
             """
         ]

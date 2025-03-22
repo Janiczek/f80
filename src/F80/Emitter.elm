@@ -36,6 +36,7 @@ import F80.Emitter.State as State exposing (State)
 import F80.Emitter.Util as Util exposing (ctxLabel, i, l)
 import F80.Emitter.WaitForKeypress
 import List.Extra
+import NonemptyList
 import Set
 
 
@@ -83,10 +84,18 @@ emitFnDecl fnData state =
         |> State.withContext fnData.name
             (\stateFn ->
                 State.initWith stateFn
-                    |> State.withFrame fnData.name
+                    |> State.withFrame
+                        { name = fnData.name
+                        , params = fnData.params
+                        , type_ =
+                            if isMain then
+                                State.MainFn
+
+                            else
+                                State.NonMainFn
+                        }
                         (\stateFnFrame ->
                             State.initWith stateFnFrame
-                                |> State.forEach fnData.params (\param -> State.lift_SS_SOS (State.addLocalVar param))
                                 |> State.lift_SOS_OSOS
                                     (blockFn
                                         (\s ->
@@ -99,16 +108,21 @@ emitFnDecl fnData state =
             )
 
 
+type alias FnInfo =
+    { isMain : Bool
+    }
+
+
 {-| These will emit their ASM blocks in the Output.mainCode field. That doesn't mean it's meant to go into `main()`!
 -}
-emitStmt : { isMain : Bool } -> Int -> Stmt -> State -> ( Output, State )
-emitStmt isMain ix stmt state =
+emitStmt : FnInfo -> Int -> Stmt -> State -> ( Output, State )
+emitStmt fnInfo ix stmt state =
     State.initWith state
         |> State.withContext (String.fromInt ix)
             (\stateIx ->
                 case stmt of
                     WaitForKeypress data ->
-                        F80.Emitter.WaitForKeypress.emit (emitBlock isMain) data stateIx
+                        F80.Emitter.WaitForKeypress.emit (emitBlock fnInfo) data stateIx
 
                     Loop block ->
                         let
@@ -120,12 +134,12 @@ emitStmt isMain ix stmt state =
                                 (\stateIxLoop ->
                                     State.initWith stateIxLoop
                                         |> State.l label
-                                        |> State.emit (emitBlock isMain block)
+                                        |> State.emit (emitBlock fnInfo block)
                                         |> State.i ("jp " ++ label)
                                 )
 
                     If ifData ->
-                        emitIfStmt isMain ifData stateIx
+                        emitIfStmt fnInfo ifData stateIx
 
                     DefineConst defConst ->
                         emitDefineVar defConst stateIx
@@ -140,7 +154,7 @@ emitStmt isMain ix stmt state =
                         emitCall stateIx callData
 
                     Return maybeExpr ->
-                        emitReturn isMain stateIx maybeExpr
+                        emitReturn fnInfo stateIx maybeExpr
             )
 
 
@@ -148,8 +162,8 @@ emitDefineVar : DefineVarData -> State -> ( Output, State )
 emitDefineVar defVar state =
     State.initWith state
         |> State.emit (emitExpr defVar.value)
-        |> State.i "push af"
-        |> State.lift_SS_OSOS (State.addLocalVar defVar.name)
+        |> State.push "af" { countAsExtra = False }
+        |> State.lift_SS_OSOS (State.addLocalVar { isArg = False } defVar.name)
 
 
 emitReturn : { isMain : Bool } -> State -> Maybe Expr -> ( Output, State )
@@ -162,20 +176,29 @@ emitReturn { isMain } state maybeExpr =
 
             else
                 State.i "ret"
+
+        cleanup =
+            if isMain then
+                identity
+
+            else
+                State.cleanupStack (State.countCurrentLocals state)
     in
     case maybeExpr of
         Nothing ->
             State.initWith state
+                |> cleanup
                 |> return
 
         Just expr ->
             State.initWith state
                 |> State.emit (emitExpr expr)
+                |> cleanup
                 |> return
 
 
-emitIfStmt : { isMain : Bool } -> IfStmtData -> State -> ( Output, State )
-emitIfStmt isMain ifData state =
+emitIfStmt : FnInfo -> IfStmtData -> State -> ( Output, State )
+emitIfStmt fnInfo ifData state =
     let
         ctxLabel =
             Util.ctxLabel state.ctx
@@ -190,10 +213,10 @@ emitIfStmt isMain ifData state =
         Nothing ->
             State.initWith state
                 |> State.withContext "cond" (emitExpr ifData.cond)
-                |> State.i "cp 255"
+                |> State.i ("cp " ++ emitBool True)
                 |> State.i ("jp nz," ++ endLabel)
                 -- then:
-                |> State.withContext "then" (emitBlock isMain ifData.then_)
+                |> State.withContext "then" (emitBlock fnInfo ifData.then_)
                 -- end:
                 |> State.l endLabel
 
@@ -204,24 +227,24 @@ emitIfStmt isMain ifData state =
             in
             State.initWith state
                 |> State.withContext "cond" (emitExpr ifData.cond)
-                |> State.i "cp 255"
+                |> State.i ("cp " ++ emitBool True)
                 |> State.i ("jp nz," ++ elseLabel)
                 -- then:
-                |> State.withContext "then" (emitBlock isMain ifData.then_)
+                |> State.withContext "then" (emitBlock fnInfo ifData.then_)
                 |> State.i ("jp " ++ endLabel)
                 -- else:
                 |> State.l elseLabel
-                |> State.withContext "else" (emitBlock isMain else_)
+                |> State.withContext "else" (emitBlock fnInfo else_)
                 -- end:
                 |> State.l endLabel
 
 
-emitBlock : { isMain : Bool } -> Block -> State -> ( Output, State )
-emitBlock isMain block state =
+emitBlock : FnInfo -> Block -> State -> ( Output, State )
+emitBlock fnInfo block state =
     List.Extra.indexedFoldl
         (\ix stmt outputAndState ->
             outputAndState
-                |> State.emit (emitStmt isMain ix stmt)
+                |> State.emit (emitStmt fnInfo ix stmt)
         )
         (State.initWith state)
         block
@@ -242,29 +265,21 @@ emitCall state callData =
             ( emitCallRenderText callData, state )
 
         _ ->
-            let
-                ( argsOutput, newState ) =
-                    emitCallArgs state callData.args
-            in
-            ( argsOutput
-                |> Output.add
-                    (Output.code
-                        [ i <| "call " ++ callData.fn ]
-                    )
-            , newState
+            State.initWith state
+                |> State.emit (emitCallArgs callData.args)
+                |> State.i ("call " ++ callData.fn)
+                |> State.cleanupStack (List.length callData.args)
+
+
+emitCallArgs : List Expr -> State -> ( Output, State )
+emitCallArgs args state =
+    State.initWith state
+        |> State.forEach args
+            (\arg s ->
+                State.initWith s
+                    |> State.emit (emitExpr arg)
+                    |> State.push "af" { countAsExtra = True }
             )
-
-
-emitCallArgs : State -> List Expr -> ( Output, State )
-emitCallArgs state args =
-    List.Extra.indexedFoldl
-        (\ix arg outputAndState ->
-            outputAndState
-                |> State.emit (emitExpr arg)
-                |> State.i "push af"
-        )
-        (State.initWith state)
-        args
 
 
 {-| Clobbers DE,HL. If that causes issues, TODO clean up after ourselves?
@@ -347,45 +362,34 @@ emitExpr expr state =
         ( output, finalState ) =
             case expr of
                 Int n ->
-                    ( Output.code [ i <| "ld a," ++ String.fromInt n ]
-                    , state
-                    )
+                    State.initWith state
+                        |> State.i ("ld a," ++ String.fromInt n)
 
                 Var var ->
-                    ( if Set.member var state.globalVars then
-                        Output.code [ i <| "ld a," ++ var ]
+                    State.initWith state
+                        |> (if Set.member var state.globalVars then
+                                State.i ("ld a," ++ var)
 
-                      else
-                        case State.getVar var state of
-                            Nothing ->
-                                Debug.todo <| "emitExpr: var " ++ var ++ " not found"
+                            else
+                                case State.getVar var state of
+                                    Nothing ->
+                                        Debug.todo <| "emitExpr: var " ++ var ++ " not found"
 
-                            Just { stackOffset } ->
-                                Output.code
-                                    [ i <| "ld ix," ++ String.fromInt (State.getCurrentFrameSize state)
-                                    , i "add ix,sp"
-                                    , i <| "ld a,(ix-" ++ String.fromInt stackOffset ++ ")"
-                                    ]
-                    , state
-                    )
+                                    Just { stackOffset, isArg } ->
+                                        \os ->
+                                            os
+                                                |> State.i ("ld ix," ++ String.fromInt (State.currentBaseOffset state))
+                                                |> State.i "add ix,sp"
+                                                |> State.i ("ld a,(ix-" ++ String.fromInt stackOffset ++ ")")
+                           )
 
                 String _ ->
                     Debug.todo "emitExpr String - this shouldn't have happened - we hoisted all string literals to global string constants"
 
                 Bool b ->
-                    ( Output.code
-                        [ i <|
-                            "ld a,"
-                                ++ String.fromInt
-                                    (if b then
-                                        255
-
-                                     else
-                                        0
-                                    )
-                        ]
-                    , state
-                    )
+                    State.initWith state
+                        |> State.i
+                            ("ld a," ++ emitBool b)
 
                 BinOp data ->
                     let
@@ -395,17 +399,17 @@ emitExpr expr state =
                                 BOp_Add ->
                                     State.initWith stateBinop
                                         |> {- a = R -} State.withContext "right" (emitExpr data.right)
-                                        |> State.i "push af"
+                                        |> State.push "af" { countAsExtra = True }
                                         |> {- a = L -} State.withContext "left" (emitExpr data.left)
-                                        |> {- b = R -} State.i "pop bc"
+                                        |> {- b = R -} State.pop "bc" { countAsExtra = True }
                                         |> {- a = L + R -} State.i "add b"
 
                                 BOp_Sub ->
                                     State.initWith stateBinop
                                         |> {- a = R -} State.withContext "right" (emitExpr data.right)
-                                        |> State.i "push af"
+                                        |> State.push "af" { countAsExtra = True }
                                         |> {- a = L -} State.withContext "left" (emitExpr data.left)
-                                        |> {- b = R -} State.i "pop bc"
+                                        |> {- b = R -} State.pop "bc" { countAsExtra = True }
                                         |> {- a = L - R -} State.i "sub b"
 
                                 BOp_Gt ->
@@ -424,17 +428,17 @@ emitExpr expr state =
                                     in
                                     State.initWith stateBinop
                                         |> {- a = L -} State.withContext "left" (emitExpr data.left)
-                                        |> State.i "push af"
+                                        |> State.push "af" { countAsExtra = True }
                                         |> {- a = R -} State.withContext "right" (emitExpr data.right)
-                                        |> {- b = L -} State.i "pop bc"
+                                        |> {- b = L -} State.pop "bc" { countAsExtra = True }
                                         |> {- carry = L <= R -} State.i "cp b"
                                         |> State.i ("jp nc," ++ onGTLabel)
                                         -- L <= R:
-                                        |> State.i "ld a,0"
+                                        |> State.i ("ld a," ++ emitBool False)
                                         |> State.i ("jp " ++ endLabel)
                                         -- L > R:
                                         |> State.l onGTLabel
-                                        |> State.i "ld a,255"
+                                        |> State.i ("ld a," ++ emitBool True)
                                         |> State.l endLabel
 
                                 BOp_Lt ->
@@ -453,17 +457,17 @@ emitExpr expr state =
                                     in
                                     State.initWith stateBinop
                                         |> {- a = R -} State.withContext "right" (emitExpr data.right)
-                                        |> State.i "push af"
+                                        |> State.push "af" { countAsExtra = True }
                                         |> {- a = L -} State.withContext "left" (emitExpr data.left)
-                                        |> {- b = R -} State.i "pop bc"
+                                        |> {- b = R -} State.pop "bc" { countAsExtra = True }
                                         |> {- carry = L >= R -} State.i "cp b"
                                         |> State.i ("jp nc," ++ onLTLabel)
                                         -- L >= R:
-                                        |> State.i "ld a,0"
+                                        |> State.i ("ld a," ++ emitBool False)
                                         |> State.i ("jp " ++ endLabel)
                                         -- L < R:
                                         |> State.l onLTLabel
-                                        |> State.i "ld a,255"
+                                        |> State.i ("ld a," ++ emitBool True)
                                         |> State.l endLabel
                     in
                     State.initWith state
@@ -519,7 +523,7 @@ emitIfExpr state data =
             (\stateIf ->
                 State.initWith stateIf
                     |> State.withContext "cond" (emitExpr data.cond)
-                    |> State.i "cp 255"
+                    |> State.i ("cp " ++ emitBool True)
                     |> State.i ("jp nz," ++ elseLabel)
                     |> State.withContext "then" (emitExpr data.then_)
                     |> State.i ("jp " ++ endLabel)
@@ -527,3 +531,14 @@ emitIfExpr state data =
                     |> State.withContext "else" (emitExpr data.else_)
                     |> State.l endLabel
             )
+
+
+emitBool : Bool -> String
+emitBool b =
+    String.fromInt
+        (if b then
+            255
+
+         else
+            0
+        )

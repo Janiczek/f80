@@ -50,10 +50,21 @@ expectEqualMultiline expected actual =
             )
 
 
-removeComments : String -> String
-removeComments asm =
+removeCommentsAndEmptyLines : String -> String
+removeCommentsAndEmptyLines asm =
     asm
         |> String.lines
+        |> List.filter
+            (\line ->
+                let
+                    trimmed =
+                        String.trim line
+                in
+                not
+                    (String.isEmpty trimmed
+                        || String.startsWith ";" trimmed
+                    )
+            )
         |> List.map
             (\s ->
                 case String.split ";" s of
@@ -93,7 +104,7 @@ testEmit source expected =
                         |> expectEqualMultiline
                             (expected
                                 |> String.trim
-                                |> removeComments
+                                |> removeCommentsAndEmptyLines
                             )
 
                 Err err ->
@@ -441,8 +452,111 @@ stmts =
         , returns
         , consts
         , lets
-        , Test.todo "assign stmts"
+        , assignStmts
         , callStmts
+        ]
+
+
+assignStmts : Test
+assignStmts =
+    Test.describe "assign stmts"
+        [ testEmit
+            """
+main() {
+    let x = 1
+    x = 2
+    return x // we should return 2
+}
+            """
+            """
+org 0x8000
+main:
+    ld a,1
+    push af ; save var on the stack
+    ld a,2
+
+    ; overwrite var on the stack
+    ld ix,2
+    add ix,sp
+    ld (ix-1),a
+
+    ; load var from the stack
+    ld ix,2
+    add ix,sp
+    ld a,(ix-1)
+
+    jp _end
+_end:
+    jp _end
+            """
+        , testEmit
+            """
+main() {
+    let x = 1
+    const y = x
+    x = 2
+    return x + y // y should still be 1, so we should return 3
+}
+            """
+            """
+org 0x8000
+main:
+    ld a,1
+
+    push af ; save x on the stack
+
+    ; load x from the stack
+    ld ix,2
+    add ix,sp
+    ld a,(ix-1)
+
+    push af ; save y on the stack
+
+    ld a,2
+
+    ; overwrite x on the stack
+    ld ix,4
+    add ix,sp
+    ld (ix-1),a
+
+    ; load y from the stack
+    ld ix,4
+    add ix,sp
+    ld a,(ix-3)
+
+    push af
+
+    ; load x from the stack
+    ld ix,6
+    add ix,sp
+    ld a,(ix-1)
+
+    pop bc
+    add b
+    jp _end
+_end:
+    jp _end
+            """
+        , testEmit
+            """
+main() {
+    let x = 1
+    x += 2
+    return x // we should return 3
+}
+            """
+            """
+            """
+        , testEmit
+            """
+main() {
+    let x = 3
+    x -= 1
+    return x // we should return 2
+}
+            """
+            """
+            """
         ]
 
 

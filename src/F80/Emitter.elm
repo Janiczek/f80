@@ -148,7 +148,7 @@ emitStmt fnInfo ix stmt state =
                         emitDefineVar defLet stateIx
 
                     Assign assignData ->
-                        emitAssign assignData
+                        emitAssign assignData stateIx
 
                     CallStmt callData ->
                         emitCall stateIx callData
@@ -250,9 +250,24 @@ emitBlock fnInfo block state =
         block
 
 
-emitAssign : AssignData -> ( Output, State )
-emitAssign assignData =
-    Debug.todo "emitAssign"
+emitAssign : AssignData -> State -> ( Output, State )
+emitAssign assignData state =
+    case State.getVar assignData.var state of
+        Nothing ->
+            Debug.todo <| "emitAssign: var '" ++ assignData.var ++ "' not found"
+
+        Just { stackOffset } ->
+            case assignData.op of
+                Nothing ->
+                    -- case without an op
+                    State.initWith state
+                        |> State.emit (emitExpr assignData.value)
+                        |> State.i ("ld ix," ++ String.fromInt (State.currentBaseOffset state))
+                        |> State.i "add ix,sp"
+                        |> State.i ("ld (ix-" ++ String.fromInt stackOffset ++ "),a")
+
+                Just op ->
+                    Debug.todo <| "emitAssign: TODO case with op " ++ Debug.toString op
 
 
 emitCall : State -> CallData -> ( Output, State )
@@ -375,7 +390,7 @@ emitExpr expr state =
                                     Nothing ->
                                         Debug.todo <| "emitExpr: var " ++ var ++ " not found"
 
-                                    Just { stackOffset, isArg } ->
+                                    Just { stackOffset } ->
                                         \os ->
                                             os
                                                 |> State.i ("ld ix," ++ String.fromInt (State.currentBaseOffset state))

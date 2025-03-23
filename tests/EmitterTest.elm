@@ -779,9 +779,7 @@ callStmts =
         , generic0ArgCallStmt
         , generic1ArgCallStmt
         , generic2ArgCallStmt
-        , Test.todo "generic 3-arg call stmt"
-        , Test.todo "generic 4-arg call stmt"
-        , Test.todo "generic 5-arg call stmt"
+        , generic5ArgCallStmt
         ]
 
 
@@ -875,6 +873,70 @@ fn:              ; -> stack = A(=1),B(=2),RET, our base offset is 6, offset of a
     ld ix,8
     add ix,sp
     ld a,(ix-1)  ; a has offset 1
+    pop bc
+    add b
+    ret
+            """
+        ]
+
+
+generic5ArgCallStmt : Test
+generic5ArgCallStmt =
+    Test.describe "generic 5-arg call stmt"
+        [ testEmit
+            """
+main(){
+    fn(1,2,3,4,5)
+}
+fn(a,b,c,d,e){
+    return a + b + c + d + e
+}
+            """
+            """
+org 0x8000
+main:
+    ld a,1
+    push af      ; -> stack = 1         (not tracking offsets for args here)
+    ld a,2
+    push af      ; -> stack = 1,2       (not tracking offsets for args here)
+    ld a,3
+    push af      ; -> stack = 1,2,3     (not tracking offsets for args here)
+    ld a,4
+    push af      ; -> stack = 1,2,3,4   (not tracking offsets for args here)
+    ld a,5
+    push af      ; -> stack = 1,2,3,4,5 (not tracking offsets for args here)
+    call fn
+    ld ix,10      ; -> cleanup of call args, stack = <empty>
+    add ix,sp
+    ld sp,ix
+_end:
+    jp _end
+fn:              ; -> stack = A(=1),B(=2),C(=3),D(=4),E(=5),RET, our base offset is 12, offsets of a,b,c,d,e are 1,3,5,7,9
+    ld ix,12
+    add ix,sp
+    ld a,(ix-9)  ; e has offset 9
+    push af
+    ld ix,14
+    add ix,sp
+    ld a,(ix-7)  ; d has offset 7
+    push af
+    ld ix,16
+    add ix,sp
+    ld a,(ix-5)  ; c has offset 5
+    push af
+    ld ix,18
+    add ix,sp
+    ld a,(ix-3)  ; b has offset 3
+    push af
+    ld ix,20
+    add ix,sp
+    ld a,(ix-1)  ; a has offset 1
+    pop bc
+    add b
+    pop bc
+    add b
+    pop bc
+    add b
     pop bc
     add b
     ret
@@ -1266,7 +1328,6 @@ _ifstmt_decl_0_main_0_end:
 _end:
     jp _end
             """
-        , Test.todo "if (1 > 2) { ROM.clearScreen() }"
         , testEmit
             """
 main() {
@@ -1291,6 +1352,37 @@ main:
 _lt_decl_0_main_0_cond_binop_onLT:
     ld a,255
 _lt_decl_0_main_0_cond_binop_end:
+    cp 255
+    jp nz,_ifstmt_decl_0_main_0_end
+    call ROM_CLS
+_ifstmt_decl_0_main_0_end:
+_end:
+    jp _end
+            """
+        , testEmit
+            """
+main() {
+    if (1 > 2) {
+        ROM.clearScreen()
+    }
+}
+            """
+            -- TODO we can optimize this away later, for now this is translated verbatim
+            """
+ROM_CLS EQU 0x0daf
+org 0x8000
+main:
+    ld a,1
+    push af
+    ld a,2
+    pop bc
+    cp b
+    jp nc,_gt_decl_0_main_0_cond_binop_onGT
+    ld a,0
+    jp _gt_decl_0_main_0_cond_binop_end
+_gt_decl_0_main_0_cond_binop_onGT:
+    ld a,255
+_gt_decl_0_main_0_cond_binop_end:
     cp 255
     jp nz,_ifstmt_decl_0_main_0_end
     call ROM_CLS
@@ -1538,9 +1630,7 @@ callExprs =
         , generic0ArgCallExpr
         , generic1ArgCallExpr
         , generic2ArgCallExpr
-        , Test.todo "generic 3-arg call expr"
-        , Test.todo "generic 4-arg call expr"
-        , Test.todo "generic 5-arg call expr"
+        , generic5ArgCallExpr
         ]
 
 
@@ -1637,6 +1727,71 @@ fn:              ; -> stack = A(=1),B(=2),RET, our base offset is 6, offset of a
     ld ix,8
     add ix,sp
     ld a,(ix-1)  ; a has offset 1
+    pop bc
+    add b
+    ret
+            """
+        ]
+
+
+generic5ArgCallExpr : Test
+generic5ArgCallExpr =
+    Test.describe "generic 5-arg call expr"
+        [ testEmit
+            """
+main(){
+    return fn(1,2,3,4,5)
+}
+fn(a,b,c,d,e){
+    return a + b + c + d + e
+}
+            """
+            """
+org 0x8000
+main:
+    ld a,1
+    push af      ; -> stack = 1         (not tracking offsets for args here)
+    ld a,2
+    push af      ; -> stack = 1,2       (not tracking offsets for args here)
+    ld a,3
+    push af      ; -> stack = 1,2,3     (not tracking offsets for args here)
+    ld a,4
+    push af      ; -> stack = 1,2,3,4   (not tracking offsets for args here)
+    ld a,5
+    push af      ; -> stack = 1,2,3,4,5 (not tracking offsets for args here)
+    call fn
+    ld ix,10      ; -> cleanup of call args, stack = <empty>
+    add ix,sp
+    ld sp,ix
+    jp _end
+_end:
+    jp _end
+fn:              ; -> stack = A(=1),B(=2),C(=3),D(=4),E(=5),RET, our base offset is 12, offsets of a,b,c,d,e are 1,3,5,7,9
+    ld ix,12
+    add ix,sp
+    ld a,(ix-9)  ; e has offset 9
+    push af
+    ld ix,14
+    add ix,sp
+    ld a,(ix-7)  ; d has offset 7
+    push af
+    ld ix,16
+    add ix,sp
+    ld a,(ix-5)  ; c has offset 5
+    push af
+    ld ix,18
+    add ix,sp
+    ld a,(ix-3)  ; b has offset 3
+    push af
+    ld ix,20
+    add ix,sp
+    ld a,(ix-1)  ; a has offset 1
+    pop bc
+    add b
+    pop bc
+    add b
+    pop bc
+    add b
     pop bc
     add b
     ret

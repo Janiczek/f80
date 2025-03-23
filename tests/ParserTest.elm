@@ -283,6 +283,48 @@ foo(x, y) {
                                 }
                             ]
                         )
+        , Test.test "5 parameters" <|
+            \_ ->
+                """
+foo(a,b,c,d,e) {
+    return a + b + c + d + e
+}
+                """
+                    |> F80.Parser.parse
+                    |> Expect.equal
+                        (Ok
+                            [ FnDecl
+                                { name = "foo"
+                                , params = [ "a", "b", "c", "d", "e" ]
+                                , body =
+                                    [ Return
+                                        (Just
+                                            (BinOp
+                                                { left =
+                                                    BinOp
+                                                        { left =
+                                                            BinOp
+                                                                { left =
+                                                                    BinOp
+                                                                        { left = Var "a"
+                                                                        , op = BOp_Add
+                                                                        , right = Var "b"
+                                                                        }
+                                                                , op = BOp_Add
+                                                                , right = Var "c"
+                                                                }
+                                                        , op = BOp_Add
+                                                        , right = Var "d"
+                                                        }
+                                                , op = BOp_Add
+                                                , right = Var "e"
+                                                }
+                                            )
+                                        )
+                                    ]
+                                }
+                            ]
+                        )
         ]
 
 
@@ -1078,6 +1120,28 @@ callExprTests =
                                             CallExpr
                                                 { fn = "foo"
                                                 , args = [ Int 1, Int 2 ]
+                                                }
+                                        }
+                                    ]
+                                }
+                            ]
+                        )
+        , Test.test "5 arguments" <|
+            \_ ->
+                "main() { let x = foo(1,2,3,4,5) }"
+                    |> F80.Parser.parse
+                    |> Expect.equal
+                        (Ok
+                            [ FnDecl
+                                { name = "main"
+                                , params = []
+                                , body =
+                                    [ DefineLet
+                                        { name = "x"
+                                        , value =
+                                            CallExpr
+                                                { fn = "foo"
+                                                , args = [ Int 1, Int 2, Int 3, Int 4, Int 5 ]
                                                 }
                                         }
                                     ]

@@ -281,7 +281,7 @@ globalValue =
 intValue : Parser Value
 intValue =
     Parser.succeed F80.AST.VInt
-        |= Parser.int
+        |= unsignedInt
 
 
 stringValue : Parser Value
@@ -398,7 +398,22 @@ varOrCallExpr =
 intExpr : Parser Expr
 intExpr =
     Parser.succeed F80.AST.Int
-        |= Parser.int
+        |= unsignedInt
+
+
+unsignedInt : Parser Int
+unsignedInt =
+    Parser.chompWhile Char.isDigit
+        |> Parser.getChompedString
+        |> Parser.andThen
+            (\str ->
+                case String.toInt str of
+                    Just int ->
+                        Parser.succeed int
+
+                    Nothing ->
+                        Parser.problem "Expected unsigned integer"
+            )
 
 
 stringExpr : Parser Expr

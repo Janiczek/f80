@@ -256,7 +256,24 @@ emitBlock fnInfo blockId block state =
             , params = []
             , type_ = State.Block
             }
-            (emitBlockWithoutFrame fnInfo block)
+            (\stateFrame ->
+                let
+                    sizeBefore =
+                        State.countCurrentLocals stateFrame
+
+                    ( o, finalState ) =
+                        stateFrame
+                            |> emitBlockWithoutFrame fnInfo block
+
+                    sizeAfter =
+                        State.countCurrentLocals finalState
+
+                    diff =
+                        sizeAfter - sizeBefore
+                in
+                ( o, finalState )
+                    |> State.cleanupStack diff
+            )
 
 
 emitBlockWithoutFrame : FnInfo -> Block -> State -> ( Output, State )

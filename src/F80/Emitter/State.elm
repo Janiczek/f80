@@ -254,6 +254,8 @@ startFrame { name, type_, params } state =
     }
 
 
+{-| TODO maybe we could move all stack cleanup in here?
+-}
 endFrame : State -> State
 endFrame state =
     { state
@@ -293,7 +295,7 @@ addLocalVar { type_ } name state =
                                             Nothing ->
                                                 let
                                                     frameSize =
-                                                        baseOffset frame
+                                                        currentBaseOffset state
 
                                                     stackOffset =
                                                         frameSize + 1
@@ -402,8 +404,10 @@ getVarHelp name ( f, fs ) =
 
 
 currentBaseOffset : State -> Int
-currentBaseOffset =
-    onCurrentFrame baseOffset
+currentBaseOffset state =
+    state.stackFrames
+        |> NonemptyList.map baseOffset
+        |> NonemptyList.sum
 
 
 onCurrentFrame : (Frame -> a) -> State -> a

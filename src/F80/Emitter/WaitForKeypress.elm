@@ -9,7 +9,7 @@ import Set
 
 
 emit :
-    (List Stmt -> State -> ( Output, State ))
+    (String -> List Stmt -> State -> ( Output, State ))
     -> List WaitForKeypressItem
     -> State
     -> ( Output, State )
@@ -23,7 +23,7 @@ emit emitBlock cases state =
 
 
 emit_ :
-    (List Stmt -> State -> ( Output, State ))
+    (String -> List Stmt -> State -> ( Output, State ))
     -> List WaitForKeypressItem
     -> State
     -> ( Output, State )
@@ -50,6 +50,9 @@ emit_ emitBlock cases state =
         onPrefix =
             waitPrefix ++ "on"
 
+        blockIdPrefix =
+            "$waitForKeypress_"
+
         caseBlocks =
             cases
                 |> List.map
@@ -61,7 +64,7 @@ emit_ emitBlock cases state =
                         \os ->
                             os
                                 |> State.l keyLabel_
-                                |> State.withContext keyLabel_ (emitBlock case_.body)
+                                |> State.withContext keyLabel_ (emitBlock (blockIdPrefix ++ keyLabel_) case_.body)
                                 |> State.i ("jp " ++ endLabel)
                     )
     in

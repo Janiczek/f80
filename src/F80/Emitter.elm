@@ -102,7 +102,7 @@ emitFnDecl fnData state =
                                         (\s ->
                                             State.initWith s
                                                 |> State.l fnData.name
-                                                |> State.emit (emitBlock { isMain = isMain } fnData.body)
+                                                |> State.emit (emitBlockWithoutFrame { isMain = isMain } fnData.body)
                                         )
                                     )
                         )
@@ -135,7 +135,7 @@ emitStmt fnInfo ix stmt state =
                                 (\stateIxLoop ->
                                     State.initWith stateIxLoop
                                         |> State.l label
-                                        |> State.emit (emitBlock fnInfo block)
+                                        |> State.emit (emitBlock fnInfo "loop" block)
                                         |> State.i ("jp " ++ label)
                                 )
 
@@ -225,7 +225,7 @@ emitIfStmt fnInfo ifData state =
                 |> State.i ("cp " ++ emitBool True)
                 |> State.i ("jp nz," ++ endLabel)
                 -- then:
-                |> State.withContext "then" (emitBlock fnInfo ifData.then_)
+                |> State.withContext "then" (emitBlock fnInfo "$then" ifData.then_)
                 -- end:
                 |> State.l endLabel
 
@@ -239,24 +239,30 @@ emitIfStmt fnInfo ifData state =
                 |> State.i ("cp " ++ emitBool True)
                 |> State.i ("jp nz," ++ elseLabel)
                 -- then:
-                |> State.withContext "then" (emitBlock fnInfo ifData.then_)
+                |> State.withContext "then" (emitBlock fnInfo "$then" ifData.then_)
                 |> State.i ("jp " ++ endLabel)
                 -- else:
                 |> State.l elseLabel
-                |> State.withContext "else" (emitBlock fnInfo else_)
+                |> State.withContext "else" (emitBlock fnInfo "$else" else_)
                 -- end:
                 |> State.l endLabel
 
 
-emitBlock : FnInfo -> Block -> State -> ( Output, State )
-emitBlock fnInfo block state =
-    List.Extra.indexedFoldl
-        (\ix stmt outputAndState ->
-            outputAndState
-                |> State.emit (emitStmt fnInfo ix stmt)
-        )
-        (State.initWith state)
-        block
+emitBlock : FnInfo -> String -> Block -> State -> ( Output, State )
+emitBlock fnInfo blockId block state =
+    State.initWith state
+        |> State.withFrame
+            { name = blockId
+            , params = []
+            , type_ = State.Block
+            }
+            (emitBlockWithoutFrame fnInfo block)
+
+
+emitBlockWithoutFrame : FnInfo -> Block -> State -> ( Output, State )
+emitBlockWithoutFrame fnInfo block state =
+    State.initWith state
+        |> State.forEachIndexed block (emitStmt fnInfo)
 
 
 emitAssign : AssignData -> State -> ( Output, State )

@@ -1,5 +1,5 @@
 module F80.Emitter.State exposing
-    ( State, empty, mapState, initWith, forEach
+    ( State, empty, mapState, initWith, forEach, forEachIndexed
     , Frame, FrameType(..)
     , VarType(..)
     , stackItemSize
@@ -15,7 +15,7 @@ module F80.Emitter.State exposing
 
 {-|
 
-@docs State, empty, mapState, initWith, forEach
+@docs State, empty, mapState, initWith, forEach, forEachIndexed
 @docs Frame, FrameType
 @docs VarType
 @docs stackItemSize
@@ -151,6 +151,20 @@ forEach list fn os =
             let
                 ( o2, s2 ) =
                     fn item s
+            in
+            ( Output.smush o o2, s2 )
+        )
+        os
+        list
+
+
+forEachIndexed : List a -> (Int -> a -> State -> ( Output, State )) -> ( Output, State ) -> ( Output, State )
+forEachIndexed list fn os =
+    List.Extra.indexedFoldl
+        (\ix item ( o, s ) ->
+            let
+                ( o2, s2 ) =
+                    fn ix item s
             in
             ( Output.smush o o2, s2 )
         )

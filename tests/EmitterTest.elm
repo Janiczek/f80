@@ -652,6 +652,84 @@ bar() {
 }
             """
             """
+org 0x8000
+main:
+    ld a,1
+    push af     ; save x at offset 1
+    call foo
+    push af     ; save y at offset 3
+    ld ix,4
+    add ix,sp
+    ld a,(ix-3) ; load y
+    push af
+    ld ix,6
+    add ix,sp
+    ld a,(ix-1) ; load x
+    pop bc
+    add b
+    ; no cleanup in main
+    jp _end
+_end:
+    jp _end
+bar:
+    ld a,4
+    push af     ; save x at offset 3 (offset 1 = CALL return address)
+    ld ix,4
+    add ix,sp
+    ld a,(ix-3) ; load x
+    ; cleanup bar() (1 local)
+    ld ix,2
+    add ix,sp
+    ld sp,ix
+    ret
+foo:
+    ld a,2      ; save x at offset 3 (offset 1 = CALL return address)
+    push af
+    ld a,0      ; save y at offset 5
+    push af
+    ld a,255    ; IF
+    cp 255
+    jp nz,_ifstmt_decl_1_foo_2_end
+    ; THEN --------------------------
+    ld a,3
+    push af     ; save x at offset 7
+    call bar
+    ld b,a
+    ld ix,8
+    add ix,sp
+    ld a,(ix-5) ; load y
+    add b
+    ld (ix-5),a  ; y += bar()
+    ld ix,8
+    add ix,sp
+    ld a,(ix-7) ; load x (inside if(true))
+    ld b,a
+    ld ix,8
+    add ix,sp
+    ld a,(ix-5) ; load y
+    add b
+    ld (ix-5),a  ; y += x
+    ; cleanup block (1 local)
+    ld ix,2
+    add ix,sp
+    ld sp,ix
+    ; END THEN --------------------------
+    ; NO ELSE ---------------------------
+_ifstmt_decl_1_foo_2_end:
+    ld ix,6
+    add ix,sp
+    ld a,(ix-5) ; load y
+    push af
+    ld ix,8
+    add ix,sp
+    ld a,(ix-3) ; load x (in foo())
+    pop bc
+    add b
+    ; cleanup foo() (2 locals)
+    ld ix,4
+    add ix,sp
+    ld sp,ix
+    ret
             """
         ]
 

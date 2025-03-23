@@ -17,7 +17,8 @@ import F80.AST as AST
         , Block
         , CallData
         , Decl(..)
-        , DefineVarData
+        , DefineConstData
+        , DefineLetData
         , Expr(..)
         , FnDeclData
         , GlobalDeclData
@@ -142,10 +143,10 @@ emitStmt fnInfo ix stmt state =
                         emitIfStmt fnInfo ifData stateIx
 
                     DefineConst defConst ->
-                        emitDefineVar defConst stateIx
+                        emitDefineConst defConst stateIx
 
                     DefineLet defLet ->
-                        emitDefineVar defLet stateIx
+                        emitDefineLet defLet stateIx
 
                     Assign assignData ->
                         emitAssign assignData stateIx
@@ -158,12 +159,20 @@ emitStmt fnInfo ix stmt state =
             )
 
 
-emitDefineVar : DefineVarData -> State -> ( Output, State )
-emitDefineVar defVar state =
+emitDefineConst : DefineConstData -> State -> ( Output, State )
+emitDefineConst defVar state =
     State.initWith state
         |> State.emit (emitExpr defVar.value)
         |> State.push "af" { countAsExtra = False }
-        |> State.lift_SS_OSOS (State.addLocalVar { isArg = False } defVar.name)
+        |> State.lift_SS_OSOS (State.addLocalVar { type_ = State.Const } defVar.name)
+
+
+emitDefineLet : DefineLetData -> State -> ( Output, State )
+emitDefineLet defVar state =
+    State.initWith state
+        |> State.emit (emitExpr defVar.value)
+        |> State.push "af" { countAsExtra = False }
+        |> State.lift_SS_OSOS (State.addLocalVar { type_ = State.Let } defVar.name)
 
 
 emitReturn : { isMain : Bool } -> State -> Maybe Expr -> ( Output, State )

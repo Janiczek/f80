@@ -6,7 +6,7 @@ module F80.AST exposing
     , Block, walkBlock
     , Stmt(..), walkStmt
     , WaitForKeypressItem, CallData, IfStmtData, AssignData
-    , DefineVarData
+    , DefineConstData, DefineLetData
     , Expr(..), walkExpr
     , IfExprData
     , BinOp(..), BinOpData
@@ -27,7 +27,7 @@ module F80.AST exposing
 @docs Block, walkBlock
 @docs Stmt, walkStmt
 @docs WaitForKeypressItem, CallData, IfStmtData, AssignData
-@docs DefineVarData
+@docs DefineConstData, DefineLetData
 @docs Expr, walkExpr
 @docs IfExprData
 @docs BinOp, BinOpData
@@ -97,8 +97,8 @@ type Stmt
     = WaitForKeypress (List WaitForKeypressItem)
     | Loop Block
     | If IfStmtData
-    | DefineConst DefineVarData
-    | DefineLet DefineVarData
+    | DefineConst DefineConstData
+    | DefineLet DefineLetData
     | Assign AssignData
     | CallStmt CallData
     | Return (Maybe Expr)
@@ -111,7 +111,13 @@ type alias AssignData =
     }
 
 
-type alias DefineVarData =
+type alias DefineConstData =
+    { name : String
+    , value : Expr
+    }
+
+
+type alias DefineLetData =
     { name : String
     , value : Expr
     }

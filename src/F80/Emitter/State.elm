@@ -1,6 +1,7 @@
 module F80.Emitter.State exposing
     ( State, empty, mapState, initWith, forEach
     , Frame, FrameType(..)
+    , VarType(..)
     , stackItemSize
     , getVar, currentBaseOffset, countCurrentLocals
     , lift_SS_SOS, lift_SOS_OSOS, lift_SS_OSOS
@@ -16,6 +17,7 @@ module F80.Emitter.State exposing
 
 @docs State, empty, mapState, initWith, forEach
 @docs Frame, FrameType
+@docs VarType
 @docs stackItemSize
 @docs getVar, currentBaseOffset, countCurrentLocals
 @docs lift_SS_SOS, lift_SOS_OSOS, lift_SS_OSOS
@@ -67,7 +69,7 @@ type alias State =
 
 type alias Frame =
     { id : String -- not strictly necessary, but helpful for debugging
-    , locals : Dict String { stackOffset : Int, isArg : Bool } -- local vars for this stack frame, with the offset from the base pointer
+    , locals : Dict String { stackOffset : Int, type_ : VarType } -- local vars for this stack frame, with the offset from the base pointer
     , stackUsedOutsideLocals : Int -- eg. args for a function we'll be calling
     , type_ : FrameType
     }
@@ -78,6 +80,12 @@ type FrameType
     | MainFn
     | NonMainFn
     | Block
+
+
+type VarType
+    = Let
+    | Const
+    | Arg
 
 
 {-| 2 because we need to push `af` but we only use `a`
@@ -221,7 +229,7 @@ startFrame { name, type_, params } state =
                                 (\ix param ->
                                     ( param
                                     , { stackOffset = ix * stackItemSize + 1
-                                      , isArg = True
+                                      , type_ = Arg
                                       }
                                     )
                                 )
@@ -256,8 +264,8 @@ This assumes you've already pushed this onto the stack:
     |> State.addLocalVar "a"
 
 -}
-addLocalVar : { isArg : Bool } -> String -> State -> State
-addLocalVar { isArg } name state =
+addLocalVar : { type_ : VarType } -> String -> State -> State
+addLocalVar { type_ } name state =
     { state
         | stackFrames =
             state.stackFrames
@@ -278,7 +286,7 @@ addLocalVar { isArg } name state =
                                                 in
                                                 Just
                                                     { stackOffset = stackOffset
-                                                    , isArg = isArg
+                                                    , type_ = type_
                                                     }
 
                                             Just old ->
@@ -357,14 +365,14 @@ otherBlock label fn ( output, state ) =
     )
 
 
-getVar : String -> State -> Maybe { stackOffset : Int, isArg : Bool }
+getVar : String -> State -> Maybe { stackOffset : Int, type_ : VarType }
 getVar name state =
     getVarHelp name state.stackFrames
 
 
 {-| A linear walk through the frames
 -}
-getVarHelp : String -> NonemptyList Frame -> Maybe { stackOffset : Int, isArg : Bool }
+getVarHelp : String -> NonemptyList Frame -> Maybe { stackOffset : Int, type_ : VarType }
 getVarHelp name ( f, fs ) =
     case Dict.get name f.locals of
         Just data ->
@@ -422,7 +430,18 @@ countLocals : Frame -> Int
 countLocals frame =
     frame.locals
         |> Dict.values
-        |> List.Extra.count (\local -> not local.isArg)
+        |> List.Extra.count
+            (\local ->
+                case local.type_ of
+                    Let ->
+                        True
+
+                    Const ->
+                        True
+
+                    Arg ->
+                        False
+            )
 
 
 push : String -> { countAsExtra : Bool } -> ( Output, State ) -> ( Output, State )

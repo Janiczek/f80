@@ -192,7 +192,7 @@ ifStmt =
 
 defineConstStmt : Parser F80.AST.Stmt
 defineConstStmt =
-    Parser.succeed F80.AST.DefineVarData
+    Parser.succeed F80.AST.DefineConstData
         |. Parser.symbol "const"
         |. spacesOnly
         |= identifier
@@ -205,7 +205,7 @@ defineConstStmt =
 
 defineLetStmt : Parser F80.AST.Stmt
 defineLetStmt =
-    Parser.succeed F80.AST.DefineVarData
+    Parser.succeed F80.AST.DefineLetData
         |. Parser.symbol "let"
         |. spacesOnly
         |= identifier

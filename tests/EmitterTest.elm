@@ -628,7 +628,31 @@ main:
 _end:
     jp _end
             """
-        , Test.todo "shadowing const inside a loop"
+        , testEmit
+            """
+// Shadowing const inside an if block
+main() {
+    const x = 1
+    const y = foo()
+    return x + y     // 1 + 9 = 10
+}
+foo() {
+    const x = 2
+    let y = 0
+    if (true) {
+        const x = 3
+        y += bar()  // 0 + 4 = 4
+        y += x      // 4 + 3 = 7
+    }
+    return x + y    // 2 + 7 = 9
+}
+bar() {
+    const x = 4
+    return x        // 4
+}
+            """
+            """
+            """
         ]
 
 

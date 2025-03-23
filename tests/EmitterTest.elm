@@ -115,6 +115,7 @@ complex =
     Test.describe "complex"
         [ testEmit
             """
+// passing multiple args, out of order
 main() {
     const x = 1
     let y = 2
@@ -179,8 +180,255 @@ fn:             ; -> stack = A(=Y),B(=X),RET, our base offset is 6 (for now)
     ld sp,ix    ; -> stack = A,B,RET
     ret
             """
-        , Test.todo "multiple function calls (next to each other)"
-        , Test.todo "multiple function calls (nested)"
+        , testEmit
+            """
+// lexical scope: main should return 1
+main() {
+    let x = 1
+    fn()
+    return x
+}
+fn() {
+    let x = 2
+    return x
+}
+            """
+            """
+org 0x8000
+main:
+    ld a,1
+    push af
+    call fn ; we will ignore the return value (in the `a` register)
+    ld ix,2
+    add ix,sp
+    ld a,(ix-1) ; we'll overwrite it with _our_ local `a`
+    jp _end
+_end:
+    jp _end
+fn:
+    ld a,2
+    push af
+    ld ix,4
+    add ix,sp
+    ld a,(ix-3)
+    ld ix,2
+    add ix,sp
+    ld sp,ix
+    ret
+            """
+        , testEmit
+            """
+// multiple function calls (next to each other), tests whether we're cleaning up the stack correctly after function calls
+main() {
+    return foo(1) + bar(2,3) + baz(4,5,6)
+}
+foo(a) {
+    const x = 7
+    return a + x
+}
+bar(a, b) {
+    const y = 8
+    return a + b + y
+}
+baz(a, b, c) {
+    const z = 9
+    return a + b + c + z
+}
+            """
+            """
+org 0x8000
+main:
+    ld a,4
+    push af
+    ld a,5
+    push af
+    ld a,6
+    push af
+    call baz
+    ld ix,6
+    add ix,sp
+    ld sp,ix
+    push af
+    ld a,2
+    push af
+    ld a,3
+    push af
+    call bar
+    ld ix,4
+    add ix,sp
+    ld sp,ix
+    push af
+    ld a,1
+    push af
+    call foo
+    ld ix,2
+    add ix,sp
+    ld sp,ix
+    pop bc
+    add b
+    pop bc
+    add b
+    jp _end
+_end:
+    jp _end
+bar:
+    ld a,8
+    push af
+    ld ix,8
+    add ix,sp
+    ld a,(ix-7)
+    push af
+    ld ix,10
+    add ix,sp
+    ld a,(ix-3)
+    push af
+    ld ix,12
+    add ix,sp
+    ld a,(ix-1)
+    pop bc
+    add b
+    pop bc
+    add b
+    ld ix,2
+    add ix,sp
+    ld sp,ix
+    ret
+baz:
+    ld a,9
+    push af
+    ld ix,10
+    add ix,sp
+    ld a,(ix-9)
+    push af
+    ld ix,12
+    add ix,sp
+    ld a,(ix-5)
+    push af
+    ld ix,14
+    add ix,sp
+    ld a,(ix-3)
+    push af
+    ld ix,16
+    add ix,sp
+    ld a,(ix-1)
+    pop bc
+    add b
+    pop bc
+    add b
+    pop bc
+    add b
+    ld ix,2
+    add ix,sp
+    ld sp,ix
+    ret
+foo:
+    ld a,7
+    push af
+    ld ix,6
+    add ix,sp
+    ld a,(ix-5)
+    push af
+    ld ix,8
+    add ix,sp
+    ld a,(ix-1)
+    pop bc
+    add b
+    ld ix,2
+    add ix,sp
+    ld sp,ix
+    ret
+            """
+        , testEmit
+            """
+// nested function calls
+main() {
+    let x = 1
+    return foo(x) + 2
+    // -> 1+3+1+4+3+2 = 14
+}
+foo(a) {
+    let y = 3
+    return a + y + bar(y,a)
+}
+bar(y,a) {
+    let z = 4
+    return a + z + y
+}
+            """
+            """
+org 0x8000
+main:
+    ld a,1
+    push af
+    ld a,2
+    push af
+    ld ix,4
+    add ix,sp
+    ld a,(ix-1)
+    push af
+    call foo
+    ld ix,2
+    add ix,sp
+    ld sp,ix
+    pop bc
+    add b
+    jp _end
+_end:
+    jp _end
+bar:
+    ld a,4
+    push af
+    ld ix,8
+    add ix,sp
+    ld a,(ix-1)
+    push af
+    ld ix,10
+    add ix,sp
+    ld a,(ix-7)
+    push af
+    ld ix,12
+    add ix,sp
+    ld a,(ix-3)
+    pop bc
+    add b
+    pop bc
+    add b
+    ld ix,2
+    add ix,sp
+    ld sp,ix
+    ret
+foo:
+    ld a,3
+    push af
+    ld ix,6
+    add ix,sp
+    ld a,(ix-5)
+    push af
+    ld ix,8
+    add ix,sp
+    ld a,(ix-1)
+    push af
+    call bar
+    ld ix,4
+    add ix,sp
+    ld sp,ix
+    push af
+    ld ix,8
+    add ix,sp
+    ld a,(ix-5)
+    push af
+    ld ix,10
+    add ix,sp
+    ld a,(ix-1)
+    pop bc
+    add b
+    pop bc
+    add b
+    ld ix,2
+    add ix,sp
+    ld sp,ix
+    ret
+            """
         ]
 
 

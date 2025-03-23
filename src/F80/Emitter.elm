@@ -267,7 +267,34 @@ emitAssign assignData state =
                         |> State.i ("ld (ix-" ++ String.fromInt stackOffset ++ "),a")
 
                 Just op ->
-                    Debug.todo <| "emitAssign: TODO case with op " ++ Debug.toString op
+                    case op of
+                        BOp_Add ->
+                            State.initWith state
+                                |> State.emit (emitExpr assignData.value)
+                                |> State.i "ld b,a"
+                                |> State.i ("ld ix," ++ String.fromInt (State.currentBaseOffset state))
+                                |> State.i "add ix,sp"
+                                |> State.i ("ld a,(ix-" ++ String.fromInt stackOffset ++ ")")
+                                |> State.i "add b"
+                                -- we don't need to prepare ix again, it's still good from above!
+                                |> State.i ("ld (ix-" ++ String.fromInt stackOffset ++ "),a")
+
+                        BOp_Sub ->
+                            State.initWith state
+                                |> State.emit (emitExpr assignData.value)
+                                |> State.i "ld b,a"
+                                |> State.i ("ld ix," ++ String.fromInt (State.currentBaseOffset state))
+                                |> State.i "add ix,sp"
+                                |> State.i ("ld a,(ix-" ++ String.fromInt stackOffset ++ ")")
+                                |> State.i "sub b"
+                                -- we don't need to prepare ix again, it's still good from above!
+                                |> State.i ("ld (ix-" ++ String.fromInt stackOffset ++ "),a")
+
+                        BOp_Lt ->
+                            Debug.todo <| "emitAssign: assignment with op Lt shouldn't be possible. Parser bug?"
+
+                        BOp_Gt ->
+                            Debug.todo <| "emitAssign: assignment with op Gt shouldn't be possible. Parser bug?"
 
 
 emitCall : State -> CallData -> ( Output, State )

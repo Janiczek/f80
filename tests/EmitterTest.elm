@@ -546,6 +546,23 @@ main() {
 }
             """
             """
+org 0x8000
+main:
+    ld a,1
+    push af
+    ld a,2
+    ld b,a
+    ld ix,2
+    add ix,sp
+    ld a,(ix-1)
+    add b
+    ld (ix-1),a
+    ld ix,2
+    add ix,sp
+    ld a,(ix-1)
+    jp _end
+_end:
+    jp _end
             """
         , testEmit
             """
@@ -556,6 +573,23 @@ main() {
 }
             """
             """
+org 0x8000
+main:
+    ld a,3
+    push af
+    ld a,1
+    ld b,a
+    ld ix,2
+    add ix,sp
+    ld a,(ix-1)
+    sub b
+    ld (ix-1),a
+    ld ix,2
+    add ix,sp
+    ld a,(ix-1)
+    jp _end
+_end:
+    jp _end
             """
         ]
 

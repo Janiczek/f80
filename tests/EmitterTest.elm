@@ -667,7 +667,7 @@ main:
     ld a,(ix-1) ; load x
     pop bc
     add b
-    ; no cleanup in main
+    ; no cleanup of locals in main
     jp _end
 _end:
     jp _end
@@ -778,7 +778,7 @@ callStmts =
         , romClsStmt
         , generic0ArgCallStmt
         , generic1ArgCallStmt
-        , Test.todo "generic 2-arg call stmt"
+        , generic2ArgCallStmt
         , Test.todo "generic 3-arg call stmt"
         , Test.todo "generic 4-arg call stmt"
         , Test.todo "generic 5-arg call stmt"
@@ -828,7 +828,7 @@ main:
     ld a,1
     push af      ; -> stack = 1  (not tracking offsets for args here)
     call fn
-    ld ix,2      ; -> stack = <empty>
+    ld ix,2      ; -> cleanup of call args, stack = <empty>
     add ix,sp
     ld sp,ix
 _end:
@@ -837,6 +837,46 @@ fn:              ; -> stack = A(=1),RET, our base offset is 4, offset of a = 1
     ld ix,4
     add ix,sp
     ld a,(ix-1)  ; a has offset 1
+    ret
+            """
+        ]
+
+
+generic2ArgCallStmt : Test
+generic2ArgCallStmt =
+    Test.describe "generic 2-arg call stmt"
+        [ testEmit
+            """
+main(){
+    fn(1,2)
+}
+fn(a,b){
+    return a + b
+}
+            """
+            """
+org 0x8000
+main:
+    ld a,1
+    push af      ; -> stack = 1   (not tracking offsets for args here)
+    ld a,2
+    push af      ; -> stack = 1,2 (not tracking offsets for args here)
+    call fn
+    ld ix,4      ; -> cleanup of call args, stack = <empty>
+    add ix,sp
+    ld sp,ix
+_end:
+    jp _end
+fn:              ; -> stack = A(=1),B(=2),RET, our base offset is 6, offset of a = 1, offset of b = 3
+    ld ix,6
+    add ix,sp
+    ld a,(ix-3)  ; b has offset 3
+    push af
+    ld ix,8
+    add ix,sp
+    ld a,(ix-1)  ; a has offset 1
+    pop bc
+    add b
     ret
             """
         ]
@@ -1497,7 +1537,7 @@ callExprs =
         , romClsExpr
         , generic0ArgCallExpr
         , generic1ArgCallExpr
-        , Test.todo "generic 2-arg call expr"
+        , generic2ArgCallExpr
         , Test.todo "generic 3-arg call expr"
         , Test.todo "generic 4-arg call expr"
         , Test.todo "generic 5-arg call expr"
@@ -1558,6 +1598,47 @@ fn:              ; -> stack = A(=1),RET, our base offset is 4, offset of a = 1
     ld ix,4
     add ix,sp
     ld a,(ix-1)  ; a has offset 1
+    ret
+            """
+        ]
+
+
+generic2ArgCallExpr : Test
+generic2ArgCallExpr =
+    Test.describe "generic 2-arg call expr"
+        [ testEmit
+            """
+main(){
+    return fn(1,2)
+}
+fn(a,b){
+    return a + b
+}
+            """
+            """
+org 0x8000
+main:
+    ld a,1
+    push af      ; -> stack = 1   (not tracking offsets for args here)
+    ld a,2
+    push af      ; -> stack = 1,2 (not tracking offsets for args here)
+    call fn
+    ld ix,4      ; -> cleanup of call args, stack = <empty>
+    add ix,sp
+    ld sp,ix
+    jp _end
+_end:
+    jp _end
+fn:              ; -> stack = A(=1),B(=2),RET, our base offset is 6, offset of a = 1, offset of b = 3
+    ld ix,6
+    add ix,sp
+    ld a,(ix-3)  ; b has offset 3
+    push af
+    ld ix,8
+    add ix,sp
+    ld a,(ix-1)  ; a has offset 1
+    pop bc
+    add b
     ret
             """
         ]

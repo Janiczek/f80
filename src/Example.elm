@@ -1,4 +1,8 @@
-module Example exposing (ast, sourceCode)
+module Example exposing
+    ( assembly
+    , ast
+    , sourceCode
+    )
 
 import F80.AST
     exposing
@@ -139,3 +143,9 @@ ast =
             ]
         }
     ]
+
+
+assembly : String
+assembly =
+    """
+    """

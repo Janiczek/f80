@@ -95,7 +95,11 @@ equ name value =
     { empty | equs = Dict.singleton name value }
 
 
-{-| Expects x,y in HL, null-terminated string address in DE
+{-| Render.text(x: U8, y: U8, s: String)
+
+Expects x,y in HL, null-terminated string address in DE.
+Doesn't return anything.
+
 -}
 renderText : Output
 renderText =
@@ -103,24 +107,21 @@ renderText =
     , mainCode = []
     , otherBlocks =
         Dict.fromList
-            [ ( "_renderString"
-              , [ l "_renderString"
-                , i "ld a, AT"
+            [ ( "_renderText"
+              , [ l "_renderText"
+                , i "ld a,AT"
                 , i "rst 0x10"
                 , i "ld a,l"
                 , i "rst 0x10"
                 , i "ld a,h"
                 , i "rst 0x10"
-                ]
-              )
-            , ( "_renderStringLoop"
-              , [ l "_renderStringLoop"
+                , l "_renderTextLoop"
                 , i "ld a,(de)"
                 , i "cp 0"
                 , i "ret z"
                 , i "rst 0x10"
                 , i "inc de"
-                , i "jr _renderStringLoop"
+                , i "jr _renderTextLoop"
                 ]
               )
             ]

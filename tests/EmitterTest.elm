@@ -118,6 +118,7 @@ suite =
         , stmts
         , exprs
         , complex
+        , example
         ]
 
 
@@ -1186,23 +1187,23 @@ org 0x8000
 main:
     ld hl,773
     ld de,hello
-    call _renderString
+    call _renderText
 _end:
     jp _end
-_renderString:
+_renderText:
     ld a, AT
     rst 0x10
     ld a,l
     rst 0x10
     ld a,h
     rst 0x10
-_renderStringLoop:
+_renderTextLoop:
     ld a,(de)
     cp 0
     ret z
     rst 0x10
     inc de
-    jr _renderStringLoop
+    jr _renderTextLoop
 hello db 'Hello', 0
             """
         , testEmit
@@ -1218,23 +1219,23 @@ org 0x8000
 main:
     ld hl,773
     ld de,_string_0_0
-    call _renderString
+    call _renderText
 _end:
     jp _end
-_renderString:
+_renderText:
     ld a, AT
     rst 0x10
     ld a,l
     rst 0x10
     ld a,h
     rst 0x10
-_renderStringLoop:
+_renderTextLoop:
     ld a,(de)
     cp 0
     ret z
     rst 0x10
     inc de
-    jr _renderStringLoop
+    jr _renderTextLoop
 _string_0_0 db 'Hello', 0
             """
         , testEmit
@@ -1252,26 +1253,26 @@ org 0x8000
 main:
     ld hl,1
     ld de,_string_0_0
-    call _renderString
+    call _renderText
     ld hl,515
     ld de,_string_0_1
-    call _renderString
+    call _renderText
 _end:
     jp _end
-_renderString:
+_renderText:
     ld a, AT
     rst 0x10
     ld a,l
     rst 0x10
     ld a,h
     rst 0x10
-_renderStringLoop:
+_renderTextLoop:
     ld a,(de)
     cp 0
     ret z
     rst 0x10
     inc de
-    jr _renderStringLoop
+    jr _renderTextLoop
 _string_0_0 db 'Hello', 0
 _string_0_1 db 'World', 0
             """
@@ -1439,24 +1440,24 @@ main:
 decl_1_main_0:
     ld hl,0
     ld de,hello
-    call _renderString
+    call _renderText
     jp decl_1_main_0
 _end:
     jp _end
-_renderString:
+_renderText:
     ld a, AT
     rst 0x10
     ld a,l
     rst 0x10
     ld a,h
     rst 0x10
-_renderStringLoop:
+_renderTextLoop:
     ld a,(de)
     cp 0
     ret z
     rst 0x10
     inc de
-    jr _renderStringLoop
+    jr _renderTextLoop
 hello db 'Hello', 0
             """
         , testEmit
@@ -1479,25 +1480,25 @@ decl_1_main_0:
 decl_1_main_0_loop_0:
     ld hl,0
     ld de,hello
-    call _renderString
+    call _renderText
     jp decl_1_main_0_loop_0
     jp decl_1_main_0
 _end:
     jp _end
-_renderString:
+_renderText:
     ld a, AT
     rst 0x10
     ld a,l
     rst 0x10
     ld a,h
     rst 0x10
-_renderStringLoop:
+_renderTextLoop:
     ld a,(de)
     cp 0
     ret z
     rst 0x10
     inc de
-    jr _renderStringLoop
+    jr _renderTextLoop
 hello db 'Hello', 0
             """
         ]
@@ -1837,24 +1838,24 @@ org 0x8000
 main:
     ld hl,773
     ld de,hello
-    call _renderString
+    call _renderText
     jp _end
 _end:
     jp _end
-_renderString:
+_renderText:
     ld a, AT
     rst 0x10
     ld a,l
     rst 0x10
     ld a,h
     rst 0x10
-_renderStringLoop:
+_renderTextLoop:
     ld a,(de)
     cp 0
     ret z
     rst 0x10
     inc de
-    jr _renderStringLoop
+    jr _renderTextLoop
 hello db 'Hello', 0
             """
         ]
@@ -2242,3 +2243,13 @@ _ifexpr_decl_1_fn_0_end:
     ret
             """
         ]
+
+
+example : Test
+example =
+    Test.only <|
+        Test.describe "example"
+            [ testEmit
+                Example.sourceCode
+                Example.assembly
+            ]

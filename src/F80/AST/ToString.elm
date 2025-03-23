@@ -1,4 +1,4 @@
-module F80.AST.ToString exposing (toString)
+module F80.AST.ToString exposing (exprToString, toString)
 
 import F80.AST
     exposing

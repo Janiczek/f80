@@ -152,10 +152,10 @@ emitStmt fnInfo ix stmt state =
                         emitAssign assignData stateIx
 
                     CallStmt callData ->
-                        emitCall stateIx callData
+                        emitCall callData stateIx
 
                     Return maybeExpr ->
-                        emitReturn fnInfo stateIx maybeExpr
+                        emitReturn fnInfo maybeExpr stateIx
             )
 
 
@@ -175,8 +175,8 @@ emitDefineLet defVar state =
         |> State.lift_SS_OSOS (State.addLocalVar { type_ = State.Let } defVar.name)
 
 
-emitReturn : { isMain : Bool } -> State -> Maybe Expr -> ( Output, State )
-emitReturn { isMain } state maybeExpr =
+emitReturn : { isMain : Bool } -> Maybe Expr -> State -> ( Output, State )
+emitReturn { isMain } maybeExpr state =
     let
         return : ( Output, State ) -> ( Output, State )
         return =
@@ -329,8 +329,8 @@ emitAssign assignData state =
                             Debug.todo <| "emitAssign: assignment with op Gt shouldn't be possible. Parser bug?"
 
 
-emitCall : State -> CallData -> ( Output, State )
-emitCall state callData =
+emitCall : CallData -> State -> ( Output, State )
+emitCall callData state =
     case callData.fn of
         "ROM.clearScreen" ->
             ( Output.romCls, state )
@@ -566,10 +566,10 @@ emitExpr expr state =
                         |> State.withContext "unaryop" fn
 
                 CallExpr data ->
-                    emitCall state data
+                    emitCall data state
 
                 IfExpr data ->
-                    emitIfExpr state data
+                    emitIfExpr data state
     in
     ( output, finalState )
 
@@ -577,8 +577,8 @@ emitExpr expr state =
 {-| The result goes to the A register.
 Otherwise this is pretty similar to the else-ful part of emitIfStmt
 -}
-emitIfExpr : State -> IfExprData -> ( Output, State )
-emitIfExpr state data =
+emitIfExpr : IfExprData -> State -> ( Output, State )
+emitIfExpr data state =
     let
         ctxLabel =
             Util.ctxLabel state.ctx

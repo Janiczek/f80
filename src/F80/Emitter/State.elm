@@ -5,6 +5,7 @@ module F80.Emitter.State exposing
     , stackItemSize
     , getVar, currentBaseOffset, countCurrentLocals
     , lift_SS_SOS, lift_SOS_OSOS, lift_SS_OSOS
+    , addOutput
     , withContext
     , withFrame
     , addLocalVar
@@ -21,6 +22,7 @@ module F80.Emitter.State exposing
 @docs stackItemSize
 @docs getVar, currentBaseOffset, countCurrentLocals
 @docs lift_SS_SOS, lift_SOS_OSOS, lift_SS_OSOS
+@docs addOutput
 
 
 # Context (for labels)
@@ -361,7 +363,9 @@ equ name value ( output, state ) =
 
 add : Output -> ( Output, State ) -> ( Output, State )
 add output2 ( output, state ) =
-    ( Output.smush output output2, state )
+    ( Output.smush output output2
+    , state
+    )
 
 
 otherBlock : String -> (State -> ( Output, State )) -> ( Output, State ) -> ( Output, State )
@@ -372,7 +376,9 @@ otherBlock label fn ( output, state ) =
 
         output2AsOther =
             { output2
-                | otherBlocks = Dict.singleton label output2.mainCode
+                | otherBlocks =
+                    output2.otherBlocks
+                        |> Dict.insert label output2.mainCode
                 , mainCode = []
             }
     in
@@ -507,3 +513,8 @@ mapCurrentFrame fn =
                     NonemptyList.mapHead fn s.stackFrames
             }
         )
+
+
+addOutput : Output -> ( Output, State ) -> ( Output, State )
+addOutput output ( output2, state ) =
+    ( Output.smush output output2, state )

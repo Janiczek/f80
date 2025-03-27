@@ -38,6 +38,8 @@ module F80.AST exposing
 
 -}
 
+import F80.Type exposing (Type)
+
 
 type alias Program =
     List Decl
@@ -74,19 +76,22 @@ type alias VBinOpData =
 
 type alias VUnaryOpData =
     { op : UnaryOp
-    , expr : Value
+    , value : Value
     }
 
 
 type alias FnDeclData =
     { name : String
     , params : List Param
+    , returnType : Type
     , body : Block
     }
 
 
 type alias Param =
-    String
+    { name : String
+    , type_ : Type
+    }
 
 
 type alias Block =
@@ -181,8 +186,7 @@ type BinOp
 
 
 type UnaryOp
-    = UOp_Neg
-    | UOp_Not
+    = UOp_Not
 
 
 type KeyPattern
@@ -198,6 +202,108 @@ keyPatternName keyPattern =
 
         KeyPattern_K ->
             "K"
+
+
+walkProgram :
+    (acc -> Value -> ( acc, Value ))
+    -> (acc -> Expr -> ( acc, Expr ))
+    -> (acc -> Stmt -> ( acc, Stmt ))
+    -> (acc -> Decl -> ( acc, Decl ))
+    -> acc
+    -> Program
+    -> ( acc, Program )
+walkProgram fValue fExpr fStmt fDecl acc program =
+    List.foldl
+        (\decl ( acc1, decls ) ->
+            let
+                ( newAcc, newDecl ) =
+                    case decl of
+                        GlobalDecl data ->
+                            let
+                                ( accAfterDecl, newData ) =
+                                    fDecl acc1 decl
+
+                                ( accAfterValue, newValue ) =
+                                    walkValue fValue accAfterDecl data.value
+                            in
+                            ( accAfterValue, GlobalDecl { data | value = newValue } )
+
+                        FnDecl data ->
+                            let
+                                ( accAfterDecl, newData ) =
+                                    case fDecl acc1 decl of
+                                        ( a, FnDecl d ) ->
+                                            ( a, d )
+
+                                        _ ->
+                                            Debug.todo "Unexpected decl type after fDecl"
+
+                                ( accAfterBody, newBody ) =
+                                    walkBlock fExpr fStmt accAfterDecl data.body
+                            in
+                            ( accAfterBody, FnDecl { newData | body = newBody } )
+            in
+            ( newAcc, decls ++ [ newDecl ] )
+        )
+        ( acc, [] )
+        program
+
+
+walkValue :
+    (acc -> Value -> ( acc, Value ))
+    -> acc
+    -> Value
+    -> ( acc, Value )
+walkValue f acc value =
+    let
+        ( newAcc, newValue ) =
+            f acc value
+    in
+    case newValue of
+        VGlobal _ ->
+            ( newAcc, newValue )
+
+        VInt _ ->
+            ( newAcc, newValue )
+
+        VString _ ->
+            ( newAcc, newValue )
+
+        VBool _ ->
+            ( newAcc, newValue )
+
+        VBytes _ ->
+            ( newAcc, newValue )
+
+        VBinOp data ->
+            let
+                ( accAfterLeft, newLeft ) =
+                    walkValue f newAcc data.left
+
+                ( accAfterRight, newRight ) =
+                    walkValue f accAfterLeft data.right
+            in
+            ( accAfterRight
+            , VBinOp
+                { data
+                    | left = newLeft
+                    , right = newRight
+                }
+            )
+
+        VUnaryOp data ->
+            let
+                ( accAfterValue, newInnerValue ) =
+                    walkValue f newAcc data.value
+            in
+            ( accAfterValue, VUnaryOp { data | value = newInnerValue } )
+
+        VStringLength innerValue ->
+            let
+                ( accAfterValue, newInnerValue ) =
+                    walkValue f newAcc innerValue
+            in
+            ( accAfterValue, VStringLength newInnerValue )
 
 
 walkStmt :

@@ -8,11 +8,13 @@ import F80.AST
         , Decl(..)
         , Expr(..)
         , KeyPattern(..)
+        , Param
         , Stmt(..)
         , UnaryOp(..)
         , Value(..)
         )
 import F80.Parser
+import F80.Type
 import Fuzz exposing (Fuzzer)
 import Test exposing (Test)
 
@@ -43,7 +45,7 @@ main() {
     foo(42)
 }
 
-bar(x) {
+bar(x: U8) {
     foo(x)
 }
 """
@@ -53,6 +55,7 @@ bar(x) {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ CallStmt
                                         { fn = "foo"
@@ -62,7 +65,8 @@ bar(x) {
                                 }
                             , FnDecl
                                 { name = "bar"
-                                , params = [ "x" ]
+                                , params = [ Param "x" F80.Type.U8 ]
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ CallStmt
                                         { fn = "foo"
@@ -179,22 +183,6 @@ globalDeclTests =
                                 }
                             ]
                         )
-        , Test.test "unary op -" <|
-            \() ->
-                "const z = -x"
-                    |> F80.Parser.parse
-                    |> Expect.equal
-                        (Ok
-                            [ GlobalDecl
-                                { name = "z"
-                                , value =
-                                    VUnaryOp
-                                        { op = UOp_Neg
-                                        , expr = VGlobal "x"
-                                        }
-                                }
-                            ]
-                        )
         , Test.test "unary op !" <|
             \() ->
                 "const z = !x"
@@ -206,7 +194,7 @@ globalDeclTests =
                                 , value =
                                     VUnaryOp
                                         { op = UOp_Not
-                                        , expr = VGlobal "x"
+                                        , value = VGlobal "x"
                                         }
                                 }
                             ]
@@ -252,6 +240,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ CallStmt
                                         { fn = "foo"
@@ -264,7 +253,7 @@ main() {
         , Test.test "parses function with parameters" <|
             \_ ->
                 """
-foo(x, y) {
+foo(x: U8, y: U8) {
     bar(x, y)
 }
                 """
@@ -273,7 +262,11 @@ foo(x, y) {
                         (Ok
                             [ FnDecl
                                 { name = "foo"
-                                , params = [ "x", "y" ]
+                                , params =
+                                    [ Param "x" F80.Type.U8
+                                    , Param "y" F80.Type.U8
+                                    ]
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ CallStmt
                                         { fn = "bar"
@@ -286,7 +279,7 @@ foo(x, y) {
         , Test.test "5 parameters" <|
             \_ ->
                 """
-foo(a,b,c,d,e) {
+foo(a: U8, b: U8, c: U8, d: U8, e: U8): U8 {
     return a + b + c + d + e
 }
                 """
@@ -295,7 +288,14 @@ foo(a,b,c,d,e) {
                         (Ok
                             [ FnDecl
                                 { name = "foo"
-                                , params = [ "a", "b", "c", "d", "e" ]
+                                , params =
+                                    [ Param "a" F80.Type.U8
+                                    , Param "b" F80.Type.U8
+                                    , Param "c" F80.Type.U8
+                                    , Param "d" F80.Type.U8
+                                    , Param "e" F80.Type.U8
+                                    ]
+                                , returnType = F80.Type.U8
                                 , body =
                                     [ Return
                                         (Just
@@ -362,6 +362,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ WaitForKeypress
                                         [ { on = KeyPattern_J
@@ -389,6 +390,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ WaitForKeypress [] ]
                                 }
@@ -407,6 +409,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ WaitForKeypress [] ]
                                 }
@@ -427,6 +430,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ WaitForKeypress
                                         [ { on = KeyPattern_J
@@ -475,6 +479,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ Loop [ CallStmt { fn = "bar", args = [] } ]
                                     ]
@@ -495,6 +500,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ Loop [] ]
                                 }
@@ -521,6 +527,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ If
                                         { cond = BinOp { left = Var "x", op = BOp_Gt, right = Int 0 }
@@ -548,6 +555,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ If
                                         { cond = BinOp { left = Var "x", op = BOp_Gt, right = Int 0 }
@@ -573,6 +581,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ If
                                         { cond = Var "x"
@@ -596,6 +605,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ If
                                         { cond = Var "x"
@@ -620,6 +630,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ If
                                         { cond = Bool True
@@ -650,6 +661,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ DefineConst { name = "y", value = String "hello" }
                                     ]
@@ -675,6 +687,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ DefineLet { name = "x", value = Int 42 }
                                     ]
@@ -702,6 +715,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ Assign { var = "x", op = Nothing, value = Int 10 }
                                     , Assign { var = "x", op = Just BOp_Add, value = Int 1 }
@@ -723,6 +737,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ Assign
                                         { var = "x"
@@ -752,6 +767,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ CallStmt
                                         { fn = "Render.text"
@@ -784,6 +800,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body = [ Return Nothing ]
                                 }
                             ]
@@ -791,7 +808,7 @@ main() {
         , Test.test "return with expr" <|
             \_ ->
                 """
-main() {
+fn(): U8 {
     return 42
 }
                 """
@@ -799,8 +816,9 @@ main() {
                     |> Expect.equal
                         (Ok
                             [ FnDecl
-                                { name = "main"
+                                { name = "fn"
                                 , params = []
+                                , returnType = F80.Type.U8
                                 , body = [ Return (Just (Int 42)) ]
                                 }
                             ]
@@ -824,6 +842,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ CallStmt
                                         { fn = "foo"
@@ -849,6 +868,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ CallStmt
                                         { fn = "foo"
@@ -871,6 +891,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ CallStmt
                                         { fn = "foo"
@@ -909,6 +930,7 @@ varTests =
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ DefineLet
                                         { name = "x"
@@ -933,6 +955,7 @@ intTests =
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ DefineLet
                                         { name = "x"
@@ -957,6 +980,7 @@ stringTests =
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ DefineLet
                                         { name = "x"
@@ -981,6 +1005,7 @@ boolTests =
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ DefineLet
                                         { name = "x"
@@ -999,6 +1024,7 @@ boolTests =
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ DefineLet
                                         { name = "x"
@@ -1027,6 +1053,7 @@ binOpTests =
                                 [ FnDecl
                                     { name = "main"
                                     , params = []
+                                    , returnType = F80.Type.Unit
                                     , body =
                                         [ DefineLet
                                             { name = "x"
@@ -1062,6 +1089,7 @@ unaryOpTests =
                                 [ FnDecl
                                     { name = "main"
                                     , params = []
+                                    , returnType = F80.Type.Unit
                                     , body =
                                         [ DefineLet
                                             { name = "x"
@@ -1074,8 +1102,7 @@ unaryOpTests =
     in
     Test.describe "UnaryOp" <|
         List.map (\( op, unaryOp ) -> testUnaryOp op unaryOp)
-            [ ( "-", UOp_Neg )
-            , ( "!", UOp_Not )
+            [ ( "!", UOp_Not )
             ]
 
 
@@ -1091,6 +1118,7 @@ callExprTests =
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ DefineLet
                                         { name = "x"
@@ -1113,6 +1141,7 @@ callExprTests =
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ DefineLet
                                         { name = "x"
@@ -1135,6 +1164,7 @@ callExprTests =
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ DefineLet
                                         { name = "x"
@@ -1163,6 +1193,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ DefineLet
                                         { name = "x"
@@ -1191,6 +1222,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ DefineLet
                                         { name = "x"
@@ -1213,6 +1245,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ DefineLet
                                         { name = "x"
@@ -1241,6 +1274,7 @@ ifExprTests =
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ DefineLet
                                         { name = "x"
@@ -1258,7 +1292,7 @@ ifExprTests =
         , Test.test "inside return" <|
             \_ ->
                 """
-main() {
+fn(): U8 {
     return (if (true) 5 else 6)
 }
                 """
@@ -1266,8 +1300,9 @@ main() {
                     |> Expect.equal
                         (Ok
                             [ FnDecl
-                                { name = "main"
+                                { name = "fn"
                                 , params = []
+                                , returnType = F80.Type.U8
                                 , body =
                                     [ Return <|
                                         Just <|
@@ -1305,6 +1340,7 @@ main() {}
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.U8
                                 , body = []
                                 }
                             ]
@@ -1320,6 +1356,7 @@ main() {} // Comment
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.U8
                                 , body = []
                                 }
                             ]
@@ -1337,6 +1374,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.U8
                                 , body = []
                                 }
                             ]
@@ -1353,6 +1391,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.U8
                                 , body = []
                                 }
                             ]
@@ -1370,6 +1409,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.U8
                                 , body = []
                                 }
                             ]
@@ -1389,6 +1429,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.U8
                                 , body =
                                     [ CallStmt { fn = "foo", args = [] }
                                     , CallStmt { fn = "bar", args = [] }
@@ -1409,11 +1450,13 @@ foo() {}
                             [ FnDecl
                                 { name = "main"
                                 , params = []
+                                , returnType = F80.Type.U8
                                 , body = []
                                 }
                             , FnDecl
                                 { name = "foo"
                                 , params = []
+                                , returnType = F80.Type.U8
                                 , body = []
                                 }
                             ]

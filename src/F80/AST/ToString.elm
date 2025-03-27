@@ -7,12 +7,14 @@ import F80.AST
         , Decl(..)
         , Expr(..)
         , KeyPattern(..)
+        , Param
         , Program
         , Stmt(..)
         , UnaryOp(..)
         , Value(..)
         , WaitForKeypressItem
         )
+import F80.Type
 
 
 toString : Program -> String
@@ -39,9 +41,36 @@ declToString decl =
         FnDecl data ->
             data.name
                 ++ "("
-                ++ String.join ", " data.params
+                ++ String.join ", " (List.map paramToString data.params)
                 ++ ") "
                 ++ blockToString data.body
+
+
+paramToString : Param -> String
+paramToString param =
+    param.name ++ ": " ++ typeToString param.type_
+
+
+typeToString : F80.Type.Type -> String
+typeToString type_ =
+    case type_ of
+        F80.Type.U8 ->
+            "U8"
+
+        F80.Type.String ->
+            "String"
+
+        F80.Type.Bool ->
+            "Bool"
+
+        F80.Type.Bytes ->
+            "Bytes"
+
+        F80.Type.Function t1 t2 ->
+            typeToString t1 ++ " -> " ++ typeToString t2
+
+        F80.Type.Unit ->
+            "Unit"
 
 
 valueToString : Value -> String
@@ -80,7 +109,7 @@ valueToString value =
             -- Assuming they're all prefix
             unaryOpToString data.op
                 ++ " "
-                ++ valueToString data.expr
+                ++ valueToString data.value
 
         VStringLength val ->
             "String.length(" ++ valueToString val ++ ")"
@@ -105,9 +134,6 @@ binOpToString op =
 unaryOpToString : UnaryOp -> String
 unaryOpToString op =
     case op of
-        UOp_Neg ->
-            "-"
-
         UOp_Not ->
             "!"
 

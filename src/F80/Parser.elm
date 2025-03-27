@@ -2,6 +2,7 @@ module F80.Parser exposing (Error, parse)
 
 import Char
 import F80.AST exposing (BinOp(..), Decl, Expr(..), UnaryOp(..), Value(..))
+import F80.Type
 import Parser exposing ((|.), (|=), Parser)
 import Pratt
 import Set exposing (Set)
@@ -51,6 +52,14 @@ fnDecl =
         |= identifier
         |= paramList
         |. spacesOnly
+        |= Parser.oneOf
+            [ Parser.succeed identity
+                |. Parser.symbol ":"
+                |. spacesOnly
+                |= type_
+            , Parser.succeed F80.Type.Unit
+            ]
+        |. spacesOnly
         |= block
         |> Parser.map F80.AST.FnDecl
 
@@ -81,7 +90,23 @@ argList =
 
 param : Parser F80.AST.Param
 param =
-    identifier
+    Parser.succeed F80.AST.Param
+        |= identifier
+        |. spacesOnly
+        |. Parser.symbol ":"
+        |. spacesOnly
+        |= type_
+
+
+type_ : Parser F80.Type.Type
+type_ =
+    -- We don't want to parse function (arrow) types because we have no anonymous functions!
+    Parser.oneOf
+        [ Parser.succeed F80.Type.U8 |. Parser.symbol "U8"
+        , Parser.succeed F80.Type.String |. Parser.symbol "String"
+        , Parser.succeed F80.Type.Bool |. Parser.symbol "Bool"
+        , Parser.succeed F80.Type.Bytes |. Parser.symbol "Bytes"
+        ]
 
 
 block : Parser F80.AST.Block
@@ -248,7 +273,6 @@ value =
             , Pratt.literal boolValue
             , Pratt.literal bytesValue
             , Pratt.literal globalValue
-            , Pratt.prefix 1 (Parser.symbol "-") (unaryOpValue UOp_Neg)
             , Pratt.prefix 1 (Parser.symbol "!") (unaryOpValue UOp_Not)
             ]
         , andThenOneOf =
@@ -341,10 +365,10 @@ binOpValue op left right =
 
 
 unaryOpValue : UnaryOp -> Value -> Value
-unaryOpValue op expr_ =
+unaryOpValue op value_ =
     F80.AST.VUnaryOp
         { op = op
-        , expr = expr_
+        , value = value_
         }
 
 
@@ -358,7 +382,6 @@ expr =
             , Pratt.literal stringExpr
             , Pratt.literal boolExpr
             , Pratt.literal varOrCallExpr
-            , Pratt.prefix 1 (Parser.symbol "-") (unaryOpExpr UOp_Neg)
             , Pratt.prefix 1 (Parser.symbol "!") (unaryOpExpr UOp_Not)
             ]
         , andThenOneOf =

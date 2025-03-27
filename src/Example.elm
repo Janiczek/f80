@@ -10,9 +10,11 @@ import F80.AST
         , Decl(..)
         , Expr(..)
         , KeyPattern(..)
+        , Param
         , Stmt(..)
         , Value(..)
         )
+import F80.Type
 
 
 sourceCode : String
@@ -49,6 +51,7 @@ ast =
     [ FnDecl
         { name = "main"
         , params = []
+        , returnType = F80.Type.Unit
         , body =
             [ CallStmt
                 { fn = "ROM.clearScreen"
@@ -93,6 +96,7 @@ ast =
     , FnDecl
         { name = "renderStaticText"
         , params = []
+        , returnType = F80.Type.Unit
         , body =
             [ CallStmt
                 { fn = "Render.text"
@@ -114,7 +118,8 @@ ast =
         }
     , FnDecl
         { name = "renderCounter"
-        , params = [ "counter" ]
+        , params = [ Param "counter" F80.Type.U8 ]
+        , returnType = F80.Type.Unit
         , body =
             [ CallStmt
                 { fn = "Render.text"

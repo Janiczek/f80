@@ -33,11 +33,27 @@ test_ sourceCode expected =
                     Expect.fail ("Failed to parse source: " ++ Debug.toString err)
 
 
+testErr : String -> F80.Typer.Error -> Test
+testErr sourceCode expectedErr =
+    Test.test ("Typing: " ++ sourceCode) <|
+        \() ->
+            case F80.Parser.parse sourceCode of
+                Ok decls ->
+                    decls
+                        |> F80.Lower.lower
+                        |> F80.Typer.findTypes
+                        |> Expect.equal (Err expectedErr)
+
+                Err err ->
+                    Expect.fail ("Failed to parse source: " ++ Debug.toString err)
+
+
 suite : Test
 suite =
     Test.only <|
         Test.describe "F80.Typer.findTypes"
             [ globals
+            , fnDecls
             , exprs
             ]
 
@@ -53,6 +69,33 @@ globals =
         , binopGlobal
         , unaryopGlobal
         , strlenGlobal
+        ]
+
+
+fnDecls : Test
+fnDecls =
+    Test.describe "fnDecls"
+        [ mainIsSpecial
+        ]
+
+
+mainIsSpecial : Test
+mainIsSpecial =
+    Test.describe "main is special"
+        [ testErr
+            """
+main(a: U8) {
+    return a
+}
+            """
+            { at = [ "main" ], type_ = F80.Typer.FunctionArityMismatch { expected = 0, actual = 1 } }
+        , testErr
+            """
+main(): U8 {
+    return 1
+}
+            """
+            { at = [ "main" ], type_ = F80.Typer.ReturnTypeMismatch { expected = Unit, actual = U8 } }
         ]
 
 

@@ -1,4 +1,4 @@
-module F80.Typer exposing (Ctx, ExprId, findTypes)
+module F80.Typer exposing (Ctx, Error, ErrorType(..), ExprId, findTypes)
 
 {-| Uses bidirectional type inference.
 -}
@@ -24,6 +24,7 @@ type alias Error =
 
 type ErrorType
     = TypeMismatch { expected : Type, actual : Type }
+    | ReturnTypeMismatch { expected : Type, actual : Type }
     | GlobalNotFound { name : String }
     | FunctionNotFound { name : String }
     | GlobalNotFunction { name : String, actual : Type }
@@ -105,7 +106,7 @@ findTypes program =
                                 Err
                                     { at = parentId
                                     , type_ =
-                                        TypeMismatch
+                                        ReturnTypeMismatch
                                             { expected = expectedReturnType
                                             , actual = data.returnType
                                             }

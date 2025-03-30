@@ -16,8 +16,7 @@ import F80.AST
         )
 import F80.Emitter
 import F80.Emitter.Util
-import F80.Lower.AddImplicitReturns
-import F80.Lower.HoistStringLiterals
+import F80.Lower
 import F80.Parser
 import Fuzz exposing (Fuzzer)
 import Test exposing (Test)
@@ -88,8 +87,7 @@ testEmit source expected =
             case F80.Parser.parse source of
                 Ok decls ->
                     decls
-                        |> F80.Lower.HoistStringLiterals.hoist
-                        |> F80.Lower.AddImplicitReturns.add
+                        |> F80.Lower.lower
                         |> F80.Emitter.emit
                         |> String.join "\n"
                         {-
@@ -2247,9 +2245,8 @@ _ifexpr_decl_1_fn_0_end:
 
 example : Test
 example =
-    Test.only <|
-        Test.describe "example"
-            [ testEmit
-                Example.sourceCode
-                Example.assembly
-            ]
+    Test.describe "example"
+        [ testEmit
+            Example.sourceCode
+            Example.assembly
+        ]

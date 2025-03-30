@@ -3,7 +3,7 @@ module F80.Emitter.Output exposing
     , empty, smush, add, toString, fromList
     , andThen
     , db, other, code, equ
-    , renderText, romCls
+    , renderText, romCls, stringFromU8, u8DivMod
     )
 
 {-|
@@ -16,7 +16,7 @@ module F80.Emitter.Output exposing
 
 ## Standard library
 
-@docs renderText, romCls
+@docs renderText, romCls, stringFromU8, u8DivMod
 
 -}
 
@@ -122,6 +122,74 @@ renderText =
                 , i "rst 0x10"
                 , i "inc de"
                 , i "jr _renderTextLoop"
+                ]
+              )
+            ]
+    , data = Dict.empty
+    }
+
+
+{-| String.fromU8(n: U8): String
+
+Expects the number in A.
+Returns null-terminated string address in HL
+
+-}
+stringFromU8 : Output
+stringFromU8 =
+    { equs = Dict.empty
+    , mainCode = []
+    , otherBlocks =
+        Dict.fromList
+            [ ( "_stringFromU8"
+              , [ l "_stringFromU8"
+                , i "ld hl,_stringFromU8Buffer"
+                , i "ld (hl),0"
+                , i "dec hl"
+                , i "ld d,0"
+                , i "ld b,10"
+                , l "_stringFromU8Loop"
+                , i "call _u8DivMod"
+                , i "add a,0x30"
+                , i "ld (hl),a"
+                , i "dec hl"
+                , i "inc d"
+                , i "ld a,c"
+                , i "or a"
+                , i "jr nz,_stringFromU8Loop"
+                , i "inc hl"
+                , i "ret"
+                ]
+              )
+            ]
+    , data = Dict.singleton "_stringFromU8Buffer" "4" -- 3 digits + null
+    }
+        |> add u8DivMod
+
+
+{-| U8.divMod(n: U8, d: U8): (quot: U8, rem: U8)
+
+Expects the dividend in A, the divisor in B.
+Returns quotient in A, remainder in C.
+
+-}
+u8DivMod : Output
+u8DivMod =
+    { equs = Dict.empty
+    , mainCode = []
+    , otherBlocks =
+        Dict.fromList
+            [ ( "_u8DivMod"
+              , [ l "_u8DivMod"
+                , i "ld c,0"
+                , l "_u8DivModLoop"
+                , i "sub b"
+                , i "jr c,_u8DivModEnd"
+                , i "inc c"
+                , i "jr _u8DivModLoop"
+                , l "_u8DivModEnd"
+                , i "add a,b"
+                , i "ret"
                 ]
               )
             ]

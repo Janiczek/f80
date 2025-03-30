@@ -80,7 +80,7 @@ emitValue val =
         VUnaryOp unaryOpData ->
             F80.Emitter.Util.emitUnaryOp unaryOpData.op
                 ++ " "
-                ++ emitValue unaryOpData.expr
+                ++ emitValue unaryOpData.value
 
         VStringLength val_ ->
             case val_ of

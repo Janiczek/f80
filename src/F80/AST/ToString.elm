@@ -66,8 +66,11 @@ typeToString type_ =
         F80.Type.Bytes ->
             "Bytes"
 
-        F80.Type.Function t1 t2 ->
-            typeToString t1 ++ " -> " ++ typeToString t2
+        F80.Type.Function args returnType ->
+            "("
+                ++ String.join ", " (List.map typeToString args)
+                ++ ") -> "
+                ++ typeToString returnType
 
         F80.Type.Unit ->
             "Unit"

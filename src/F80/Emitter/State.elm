@@ -243,7 +243,7 @@ startFrame { name, type_, params } state =
                         params
                             |> List.indexedMap
                                 (\ix param ->
-                                    ( param
+                                    ( param.name
                                     , { stackOffset = ix * stackItemSize + 1
                                       , type_ = Arg
                                       }

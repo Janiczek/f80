@@ -71,8 +71,5 @@ emitBinOp op =
 emitUnaryOp : UnaryOp -> String
 emitUnaryOp op =
     case op of
-        UOp_Neg ->
-            "-"
-
         UOp_Not ->
             "NOT"

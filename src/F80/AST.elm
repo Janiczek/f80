@@ -1,7 +1,7 @@
 module F80.AST exposing
     ( Program
     , Decl(..)
-    , GlobalDeclData, FnDeclData
+    , GlobalDeclData, FnDeclData, isMain, mainFnName
     , Param
     , Block, walkBlock
     , Stmt(..), walkStmt
@@ -13,7 +13,6 @@ module F80.AST exposing
     , UnaryOp(..), UnaryOpData
     , Value(..)
     , KeyPattern(..), keyPatternName
-    , mainFnName
     )
 
 {-|
@@ -21,7 +20,7 @@ module F80.AST exposing
 @docs Program
 
 @docs Decl
-@docs GlobalDeclData, FnDeclData
+@docs GlobalDeclData, FnDeclData, isMain, mainFnName
 
 @docs Param
 @docs Block, walkBlock
@@ -34,7 +33,6 @@ module F80.AST exposing
 @docs UnaryOp, UnaryOpData
 @docs Value
 @docs KeyPattern, keyPatternName
-@docs mainFnName
 
 -}
 
@@ -518,3 +516,8 @@ walkExpr f acc expr =
 mainFnName : String
 mainFnName =
     "main"
+
+
+isMain : String -> Bool
+isMain name =
+    name == mainFnName

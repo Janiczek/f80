@@ -4,8 +4,12 @@ module F80.Emitter exposing (emit)
 
 Arguments to functions are passed on the stack.
 Local variables are passed on the stack.
-Function return values are in register A.
-Expressions are emitted to the register A.
+
+Function return values and expressions are emitted to the register A, unless
+they're a pointer (like to a string) in which case they don't fit into a single
+8bit register and they'll be in HL.
+
+TODO: make everything be in H or HL? Or make things be on the stack?
 
 -}
 
@@ -31,6 +35,7 @@ import F80.AST as AST
         , Value(..)
         , WaitForKeypressItem
         )
+import F80.AST.ToString
 import F80.Emitter.Global
 import F80.Emitter.Output as Output exposing (Output)
 import F80.Emitter.State as State exposing (State)
@@ -70,7 +75,7 @@ emitFnDecl : FnDeclData -> State -> ( Output, State )
 emitFnDecl fnData state =
     let
         isMain =
-            fnData.name == AST.mainFnName
+            AST.isMain fnData.name
 
         blockFn : (State -> ( Output, State )) -> State -> ( Output, State )
         blockFn fn s =
@@ -336,7 +341,13 @@ emitCall callData state =
             ( Output.romCls, state )
 
         "Render.text" ->
-            ( emitCallRenderText callData, state )
+            emitCallRenderText callData state
+
+        "String.fromU8" ->
+            emitCallStringFromU8 callData state
+
+        "U8.divMod" ->
+            ( emitCallU8DivMod callData, state )
 
         _ ->
             State.initWith state
@@ -358,67 +369,67 @@ emitCallArgs args state =
 
 {-| Clobbers DE,HL. If that causes issues, TODO clean up after ourselves?
 -}
-emitCallRenderText : CallData -> Output
-emitCallRenderText callData =
+emitCallRenderText : CallData -> State -> ( Output, State )
+emitCallRenderText callData state =
     case callData.args of
         [ x, y, string ] ->
-            Output.code
-                (List.concat
-                    [ renderTextXYHL x y
-                    , [ case string of
-                            Var name ->
-                                i <| "ld de," ++ name
+            state
+                |> renderTextXYHL x y
+                |> State.emit
+                    (case string of
+                        Var name ->
+                            emitExpr (Var name)
 
-                            String str ->
-                                Debug.todo "Render.text - this should have been caught - we should have hoisted the string literal to a global constant and changed this call to use the var"
+                        String str ->
+                            Debug.todo "Render.text - this should have been caught - we should have hoisted the string literal to a global constant and changed this call to use the var"
 
-                            _ ->
-                                let
-                                    _ =
-                                        Debug.log "Unexpected Render.text string argument" string
-                                in
-                                Debug.todo "Unexpected Render.text string argument - this should have been typechecked before emitting"
-                      , i <| "call _renderString"
-                      ]
-                    ]
-                )
-                |> Output.add Output.renderText
+                        _ ->
+                            let
+                                _ =
+                                    Debug.log "Unexpected Render.text string argument" string
+                            in
+                            Debug.todo "Unexpected Render.text string argument - this should have been typechecked before emitting"
+                    )
+                |> State.i "call _renderText"
+                |> State.addOutput Output.renderText
 
         _ ->
             Debug.todo "emitCallRenderText - unexpected number of arguments"
 
 
-renderTextXYHL : Expr -> Expr -> List String
-renderTextXYHL x y =
+renderTextXYHL : Expr -> Expr -> State -> ( Output, State )
+renderTextXYHL x y state =
     let
-        emitInt : String -> Int -> String
+        emitInt : String -> Int -> ( Output, State ) -> ( Output, State )
         emitInt reg n =
-            i <| "ld " ++ reg ++ "," ++ String.fromInt n
+            State.i ("ld " ++ reg ++ "," ++ String.fromInt n)
 
-        emitVar : String -> String -> String
+        emitVar : String -> String -> ( Output, State ) -> ( Output, State )
         emitVar reg var =
-            Debug.todo "TODO emit var"
+            State.emit (emitExpr (Var var))
+                >> State.i ("ld " ++ reg ++ ",a")
     in
     case ( x, y ) of
         ( Int xx, Int yy ) ->
             -- Special optimized case
             -- ld hl,0xXXYY
-            [ i <| "ld hl," ++ String.fromInt (xx * 256 + yy) ]
+            State.initWith state
+                |> State.i ("ld hl," ++ String.fromInt (xx * 256 + yy))
 
         ( Int xx, Var yy ) ->
-            [ emitInt "h" xx
-            , emitVar "l" yy
-            ]
+            State.initWith state
+                |> emitInt "h" xx
+                |> emitVar "l" yy
 
         ( Var xx, Int yy ) ->
-            [ emitVar "h" xx
-            , emitInt "l" yy
-            ]
+            State.initWith state
+                |> emitVar "h" xx
+                |> emitInt "l" yy
 
         ( Var xx, Var yy ) ->
-            [ emitVar "h" xx
-            , emitVar "l" yy
-            ]
+            State.initWith state
+                |> emitVar "h" xx
+                |> emitVar "l" yy
 
         ( _, _ ) ->
             let
@@ -428,7 +439,46 @@ renderTextXYHL x y =
             Debug.todo "Unexpected Render.text X,Y argument - this should have been typechecked before emitting"
 
 
-{-| Loads the value into the register A.
+emitCallStringFromU8 : CallData -> State -> ( Output, State )
+emitCallStringFromU8 callData state =
+    case callData.args of
+        [ n ] ->
+            State.initWith state
+                |> State.emit (emitExpr n)
+                |> State.i "call _stringFromU8"
+                |> State.addOutput Output.stringFromU8
+
+        _ ->
+            Debug.todo "emitCallStringFromU8 - unexpected number of arguments"
+
+
+emitCallU8DivMod : CallData -> Output
+emitCallU8DivMod callData =
+    case callData.args of
+        [ n, d ] ->
+            case ( n, d ) of
+                ( Int n_, Int d_ ) ->
+                    Output.code
+                        [ i <| "ld a," ++ String.fromInt n_
+                        , i <| "ld b," ++ String.fromInt d_
+                        , i <| "call _u8DivMod"
+
+                        -- TODO do something with the results?
+                        ]
+                        |> Output.add Output.u8DivMod
+
+                _ ->
+                    Debug.todo <|
+                        "emitCallU8DivMod: unexpected arguments: "
+                            ++ F80.AST.ToString.exprToString n
+                            ++ ", "
+                            ++ F80.AST.ToString.exprToString d
+
+        _ ->
+            Debug.todo "emitCallU8DivMod - unexpected number of arguments"
+
+
+{-| Loads the value into the register A, unless it's a String var, which goes to HL.
 -}
 emitExpr : Expr -> State -> ( Output, State )
 emitExpr expr state =
@@ -442,7 +492,11 @@ emitExpr expr state =
                 Var var ->
                     State.initWith state
                         |> (if Set.member var state.globalVars then
-                                State.i ("ld a," ++ var)
+                                if Debug.todo "is global var a string" then
+                                    State.i ("ld hl," ++ var)
+
+                                else
+                                    State.i ("ld a," ++ var)
 
                             else
                                 case State.getVar var state of
@@ -454,7 +508,16 @@ emitExpr expr state =
                                             os
                                                 |> State.i ("ld ix," ++ String.fromInt (State.currentBaseOffset state))
                                                 |> State.i "add ix,sp"
-                                                |> State.i ("ld a,(ix-" ++ String.fromInt stackOffset ++ ")")
+                                                |> (if Debug.todo "is local var a string" then
+                                                        \os2 ->
+                                                            os2
+                                                                -- TODO recheck this
+                                                                |> State.i ("ld h,(ix-" ++ String.fromInt stackOffset ++ ")")
+                                                                |> State.i ("ld l,(ix-" ++ String.fromInt (stackOffset + 1) ++ ")")
+
+                                                    else
+                                                        State.i ("ld a,(ix-" ++ String.fromInt stackOffset ++ ")")
+                                                   )
                            )
 
                 String _ ->
@@ -552,14 +615,10 @@ emitExpr expr state =
                         fn : State -> ( Output, State )
                         fn stateUnaryop =
                             case data.op of
-                                UOp_Neg ->
-                                    State.initWith stateUnaryop
-                                        |> State.emit (emitExpr data.expr)
-                                        |> State.i "neg"
-
                                 UOp_Not ->
                                     State.initWith stateUnaryop
                                         |> State.emit (emitExpr data.expr)
+                                        -- 0 -> 255, 255 -> 0
                                         |> State.i "neg"
                     in
                     State.initWith state

@@ -11,8 +11,13 @@ import Parser
 port println : String -> Cmd msg
 
 
+port writeFile : { path : String, contents : String } -> Cmd msg
+
+
 type alias Flags =
-    { filename : String }
+    { file : String
+    , filename : String
+    }
 
 
 main : Program Flags () Never
@@ -36,14 +41,15 @@ run sourceCode =
 
 
 init : Flags -> ( (), Cmd Never )
-init { filename } =
-    case run Example.sourceCode of
+init { file, filename } =
+    case run file of
         Err err ->
-            ( ()
-            , println (Debug.toString err)
-            )
+            ( (), println (Debug.toString err) )
 
         Ok asm ->
             ( ()
-            , println asm
+            , writeFile
+                { path = filename ++ ".asm"
+                , contents = asm
+                }
             )

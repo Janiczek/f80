@@ -1,3 +1,14 @@
+renderStaticText() {
+  Render.text(5, 5, "Counter: ")
+  Render.text(5, 7, "Press J (-) or K (+)")
+}
+
+renderCounter(counter: U8) {
+  Render.text(14, 5, "   ")
+  const counterStr = String.fromU8(counter)
+  Render.text(14, 5, counterStr)
+}
+
 main() {
   ROM.clearScreen()
   let counter = 0
@@ -9,15 +20,4 @@ main() {
       Key.K -> { counter += 1 }
     }
   }
-}
-
-renderStaticText() {
-  Render.text(5, 5, "Counter: ")
-  Render.text(5, 7, "Press J (-) or K (+)")
-}
-
-renderCounter(counter) {
-  Render.text(14, 5, "   ")
-  const counterStr = String.fromU8(counter)
-  Render.text(14, 5, counterStr)
 }

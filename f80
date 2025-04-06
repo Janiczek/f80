@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+
+set -e
+set -o pipefail
+
+function print_line {
+    printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' '-'
+}
+
+function dim_output {
+    "$@" 2>&1 \
+      | gsed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,2};?)?)?[mGK]//g" \
+      | sed "s/^/\x1b[2m/" \
+      | sed "s/$/\x1b[0m/"
+}
+
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 <filename.f80>"
+    exit 1
+fi
+
+FILENAME=${1}
+
+print_line
+echo "Compiling the F80 compiler"
+print_line
+dim_output npx elm-esm make src/F80.elm --output=F80.elm.js
+mv F80.elm.js F80.elm.mjs
+print_line
+echo "Compiling ${FILENAME}"
+print_line
+dim_output node F80.mjs "${FILENAME}"
+
+print_line
+if [ -f "${FILENAME}.asm" ]; then
+    echo "Assembling ${FILENAME}.asm with PASMO"
+    print_line
+    dim_output pasmo --tzxbas "${FILENAME}.asm" "${FILENAME}.tzx"
+    print_line
+    echo "Successfully compiled ${FILENAME}"
+    echo "                   -> ${FILENAME}.asm"
+    echo "                   -> ${FILENAME}.tzx"
+    echo
+    echo "Now run this in Fuse or another ZX Spectrum emulator!"
+else
+    echo "Failed to compile: ${FILENAME}.asm not found"
+fi
+print_line
+
+

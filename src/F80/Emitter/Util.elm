@@ -1,5 +1,5 @@
 module F80.Emitter.Util exposing
-    ( i, l, ctxLabel
+    ( i, l
     , mainEpilogue, mainPrologue
     , emitBinOp, emitUnaryOp
     , globalStringLengthLabel
@@ -7,7 +7,7 @@ module F80.Emitter.Util exposing
 
 {-|
 
-@docs i, l, ctxLabel
+@docs i, l
 @docs mainEpilogue, mainPrologue
 @docs emitBinOp, emitUnaryOp
 @docs globalStringLengthLabel
@@ -25,13 +25,6 @@ l label =
 i : String -> String
 i instruction =
     "    " ++ instruction
-
-
-ctxLabel : List String -> String
-ctxLabel ctx =
-    ctx
-        |> List.reverse
-        |> String.join "_"
 
 
 mainPrologue : List String

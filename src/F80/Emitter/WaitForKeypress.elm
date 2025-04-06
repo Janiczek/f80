@@ -5,6 +5,7 @@ import F80.AST exposing (KeyPattern(..), Stmt, WaitForKeypressItem)
 import F80.Emitter.Output as Output exposing (Output)
 import F80.Emitter.State as State exposing (State)
 import F80.Emitter.Util as Util exposing (i, l)
+import F80.Path exposing (Step(..))
 import Set
 
 
@@ -30,7 +31,7 @@ emit_ :
 emit_ emitBlock cases state =
     let
         ctxLabel =
-            Util.ctxLabel state.ctx
+            F80.Path.toLabel state.path
 
         waitPrefix =
             "_wait_" ++ ctxLabel ++ "_"
@@ -64,7 +65,7 @@ emit_ emitBlock cases state =
                         \os ->
                             os
                                 |> State.l keyLabel_
-                                |> State.withContext keyLabel_ (emitBlock (blockIdPrefix ++ keyLabel_) case_.body)
+                                |> State.withContext (InKeyLabel keyLabel_) (emitBlock (blockIdPrefix ++ keyLabel_) case_.body)
                                 |> State.i ("jp " ++ endLabel)
                     )
     in

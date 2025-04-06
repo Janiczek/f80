@@ -1,23 +1,22 @@
-module F80.Typer exposing (Ctx, Error, ErrorType(..), ExprId, findTypes)
+module F80.Typer exposing (Ctx, Error, ErrorType(..), findTypes, findVar)
 
 {-| Uses bidirectional type inference.
 -}
 
-import Dict exposing (Dict)
+import AssocList as Dict exposing (Dict)
 import F80.AST
+import F80.Path exposing (Path, Step(..))
 import F80.Type exposing (Type(..))
-
-
-type alias ExprId =
-    List String
+import List.Extra
+import Maybe.Extra
 
 
 type alias Ctx =
-    Dict ExprId Type
+    Dict Path Type
 
 
 type alias Error =
-    { at : ExprId
+    { at : Path
     , type_ : ErrorType
     }
 
@@ -30,32 +29,49 @@ type ErrorType
     | GlobalNotFunction { name : String, actual : Type }
     | FunctionArityMismatch { expected : Int, actual : Int }
     | VarNotFound { name : String }
+    | MainFnReturnTypeMismatch { actual : Type }
+    | MainFnFunctionArityMismatch { actual : Int }
+
+
+prelude : List ( String, Type )
+prelude =
+    [ ( "Render.text", Function [ U8, U8, String ] Unit )
+    , ( "ROM.clearScreen", Function [] Unit )
+    ]
+
+
+initCtx : Ctx
+initCtx =
+    Dict.fromList []
 
 
 findTypes : F80.AST.Program -> Result Error Ctx
 findTypes program =
     let
+        -- all decls are on the top level
+        rootPath : Path
+        rootPath =
+            []
+
         processDecl : F80.AST.Decl -> Ctx -> Result Error Ctx
         processDecl decl ctx1 =
-            let
-                -- all decls are on the top level
-                parentId : ExprId
-                parentId =
-                    []
-            in
             case decl of
                 F80.AST.GlobalDecl data ->
                     -- TODO check there's only one global decl of this name
-                    case inferValue ctx1 parentId data.value of
+                    case inferValue ctx1 rootPath data.value of
                         Err err ->
                             Debug.todo "infer value result err"
 
                         Ok type_ ->
-                            Ok (Dict.insert [ data.name ] type_ ctx1)
+                            Ok (Dict.insert [ InDecl data.name ] type_ ctx1)
 
                 F80.AST.FnDecl data ->
                     -- TODO check there's only one fn decl of this name
                     let
+                        declPath : Path
+                        declPath =
+                            InDecl data.name :: rootPath
+
                         checkFnDecl : Ctx -> Result Error Ctx
                         checkFnDecl ctx_ =
                             let
@@ -63,9 +79,9 @@ findTypes program =
                                 fnCtx =
                                     List.foldl
                                         (\param ctx__ ->
-                                            Dict.insert (param.name :: data.name :: parentId) U8 ctx__
+                                            Dict.insert (InParam param.name :: declPath) U8 ctx__
                                         )
-                                        (Dict.insert [ data.name ]
+                                        (Dict.insert declPath
                                             (F80.Type.Function
                                                 (List.map .type_ data.params)
                                                 data.returnType
@@ -74,42 +90,34 @@ findTypes program =
                                         )
                                         data.params
                             in
-                            case checkBlock fnCtx (data.name :: parentId) data.body of
+                            case checkBlock fnCtx declPath data.body of
                                 Err err ->
                                     Err err
 
                                 Ok ctx2 ->
                                     Ok ctx2
 
-                        checkFnDeclArity : Int -> Ctx -> Result Error Ctx
-                        checkFnDeclArity expectedArity ctx_ =
+                        checkMainFnDeclArity : String -> Ctx -> Result Error Ctx
+                        checkMainFnDeclArity declName ctx_ =
                             let
                                 actualArity =
                                     List.length data.params
                             in
-                            if actualArity /= expectedArity then
+                            if actualArity /= 0 then
                                 Err
-                                    { at = parentId
-                                    , type_ =
-                                        FunctionArityMismatch
-                                            { expected = expectedArity
-                                            , actual = actualArity
-                                            }
+                                    { at = declPath
+                                    , type_ = MainFnFunctionArityMismatch { actual = actualArity }
                                     }
 
                             else
                                 Ok ctx_
 
-                        checkFnDeclReturnType : Type -> Ctx -> Result Error Ctx
-                        checkFnDeclReturnType expectedReturnType ctx_ =
-                            if data.returnType /= expectedReturnType then
+                        checkMainFnDeclReturnType : String -> Ctx -> Result Error Ctx
+                        checkMainFnDeclReturnType declName ctx_ =
+                            if data.returnType /= Unit then
                                 Err
-                                    { at = parentId
-                                    , type_ =
-                                        ReturnTypeMismatch
-                                            { expected = expectedReturnType
-                                            , actual = data.returnType
-                                            }
+                                    { at = declPath
+                                    , type_ = MainFnReturnTypeMismatch { actual = data.returnType }
                                     }
 
                             else
@@ -117,8 +125,8 @@ findTypes program =
                     in
                     if F80.AST.isMain data.name then
                         Ok ctx1
-                            |> Result.andThen (checkFnDeclArity 0)
-                            |> Result.andThen (checkFnDeclReturnType Unit)
+                            |> Result.andThen (checkMainFnDeclArity data.name)
+                            |> Result.andThen (checkMainFnDeclReturnType data.name)
                             |> Result.andThen checkFnDecl
 
                     else
@@ -134,14 +142,14 @@ findTypes program =
                         Err err ->
                             Err err
                 )
-                (Ok Dict.empty)
+                (Ok initCtx)
                 program
     in
     result
 
 
-inferValue : Ctx -> ExprId -> F80.AST.Value -> Result Error Type
-inferValue ctx parentId value =
+inferValue : Ctx -> Path -> F80.AST.Value -> Result Error Type
+inferValue ctx parentPath value =
     case value of
         F80.AST.VInt _ ->
             Ok U8
@@ -153,9 +161,12 @@ inferValue ctx parentId value =
             Ok Bool
 
         F80.AST.VGlobal name ->
-            case Dict.get [ name ] ctx of
+            case Dict.get [ InDecl name ] ctx of
                 Nothing ->
-                    Err { at = parentId, type_ = GlobalNotFound { name = name } }
+                    Err
+                        { at = parentPath
+                        , type_ = GlobalNotFound { name = name }
+                        }
 
                 Just type_ ->
                     Ok type_
@@ -165,18 +176,14 @@ inferValue ctx parentId value =
 
         F80.AST.VBinOp data ->
             let
-                binOpId : String
-                binOpId =
-                    "binop"
-
-                newParentId : ExprId
-                newParentId =
-                    binOpId :: parentId
+                vbinopPath : Path
+                vbinopPath =
+                    InVBinOp :: parentPath
             in
             case
                 ( data.op
-                , inferValue ctx newParentId data.left
-                , inferValue ctx newParentId data.right
+                , inferValue ctx vbinopPath data.left
+                , inferValue ctx vbinopPath data.right
                 )
             of
                 ( _, Err leftErr, _ ) ->
@@ -189,49 +196,45 @@ inferValue ctx parentId value =
                     Ok U8
 
                 ( F80.AST.BOp_Add, Ok U8, Ok other ) ->
-                    Err { at = "right" :: newParentId, type_ = TypeMismatch { expected = U8, actual = other } }
+                    Err { at = InVBinOpRight :: vbinopPath, type_ = TypeMismatch { expected = U8, actual = other } }
 
                 ( F80.AST.BOp_Add, Ok other, Ok _ ) ->
-                    Err { at = "left" :: newParentId, type_ = TypeMismatch { expected = U8, actual = other } }
+                    Err { at = InVBinOpLeft :: vbinopPath, type_ = TypeMismatch { expected = U8, actual = other } }
 
                 ( F80.AST.BOp_Sub, Ok U8, Ok U8 ) ->
                     Ok U8
 
                 ( F80.AST.BOp_Sub, Ok U8, Ok other ) ->
-                    Err { at = "right" :: newParentId, type_ = TypeMismatch { expected = U8, actual = other } }
+                    Err { at = InVBinOpRight :: vbinopPath, type_ = TypeMismatch { expected = U8, actual = other } }
 
                 ( F80.AST.BOp_Sub, Ok other, Ok _ ) ->
-                    Err { at = "left" :: newParentId, type_ = TypeMismatch { expected = U8, actual = other } }
+                    Err { at = InVBinOpLeft :: vbinopPath, type_ = TypeMismatch { expected = U8, actual = other } }
 
                 ( F80.AST.BOp_Gt, Ok U8, Ok U8 ) ->
                     Ok Bool
 
                 ( F80.AST.BOp_Gt, Ok U8, Ok other ) ->
-                    Err { at = "right" :: newParentId, type_ = TypeMismatch { expected = U8, actual = other } }
+                    Err { at = InVBinOpRight :: vbinopPath, type_ = TypeMismatch { expected = U8, actual = other } }
 
                 ( F80.AST.BOp_Gt, Ok other, Ok _ ) ->
-                    Err { at = "left" :: newParentId, type_ = TypeMismatch { expected = U8, actual = other } }
+                    Err { at = InVBinOpLeft :: vbinopPath, type_ = TypeMismatch { expected = U8, actual = other } }
 
                 ( F80.AST.BOp_Lt, Ok U8, Ok U8 ) ->
                     Ok Bool
 
                 ( F80.AST.BOp_Lt, Ok U8, Ok other ) ->
-                    Err { at = "right" :: newParentId, type_ = TypeMismatch { expected = U8, actual = other } }
+                    Err { at = InVBinOpRight :: vbinopPath, type_ = TypeMismatch { expected = U8, actual = other } }
 
                 ( F80.AST.BOp_Lt, Ok other, Ok _ ) ->
-                    Err { at = "left" :: newParentId, type_ = TypeMismatch { expected = U8, actual = other } }
+                    Err { at = InVBinOpLeft :: vbinopPath, type_ = TypeMismatch { expected = U8, actual = other } }
 
         F80.AST.VUnaryOp data ->
             let
-                unaryOpId : String
-                unaryOpId =
-                    "unaryop"
-
-                newParentId : ExprId
-                newParentId =
-                    unaryOpId :: parentId
+                vunaryopPath : Path
+                vunaryopPath =
+                    InVUnaryOp :: parentPath
             in
-            case ( data.op, inferValue ctx newParentId data.value ) of
+            case ( data.op, inferValue ctx vunaryopPath data.value ) of
                 ( _, Err err ) ->
                     Err err
 
@@ -239,10 +242,10 @@ inferValue ctx parentId value =
                     Ok Bool
 
                 ( F80.AST.UOp_Not, Ok other ) ->
-                    Err { at = newParentId, type_ = TypeMismatch { expected = Bool, actual = other } }
+                    Err { at = vunaryopPath, type_ = TypeMismatch { expected = Bool, actual = other } }
 
         F80.AST.VStringLength val ->
-            case inferValue ctx parentId val of
+            case inferValue ctx parentPath val of
                 Err err ->
                     Err err
 
@@ -250,11 +253,11 @@ inferValue ctx parentId value =
                     Ok U8
 
                 Ok other ->
-                    Err { at = parentId, type_ = TypeMismatch { expected = String, actual = other } }
+                    Err { at = parentPath, type_ = TypeMismatch { expected = String, actual = other } }
 
 
-checkBlock : Ctx -> ExprId -> F80.AST.Block -> Result Error Ctx
-checkBlock ctx parentId block =
+checkBlock : Ctx -> Path -> F80.AST.Block -> Result Error Ctx
+checkBlock ctx parentPath block =
     List.foldl
         (\stmt resultAcc ->
             case resultAcc of
@@ -262,14 +265,14 @@ checkBlock ctx parentId block =
                     Err err
 
                 Ok ctx1 ->
-                    checkStmt ctx1 parentId stmt
+                    checkStmt ctx1 parentPath stmt
         )
         (Ok ctx)
         block
 
 
-checkStmt : Ctx -> ExprId -> F80.AST.Stmt -> Result Error Ctx
-checkStmt ctx parentId stmt =
+checkStmt : Ctx -> Path -> F80.AST.Stmt -> Result Error Ctx
+checkStmt ctx parentPath stmt =
     case stmt of
         F80.AST.WaitForKeypress items ->
             List.foldl
@@ -279,21 +282,21 @@ checkStmt ctx parentId stmt =
                             Err err
 
                         Ok ctx1 ->
-                            checkBlock ctx1 parentId item.body
+                            checkBlock ctx1 parentPath item.body
                 )
                 (Ok ctx)
                 items
 
         F80.AST.Loop block ->
-            checkBlock ctx parentId block
+            checkBlock ctx parentPath block
 
         F80.AST.If data ->
-            case checkExpr ctx parentId data.cond Bool of
+            case checkExpr ctx parentPath data.cond Bool of
                 Err err ->
                     Err err
 
                 Ok () ->
-                    case checkBlock ctx parentId data.then_ of
+                    case checkBlock ctx parentPath data.then_ of
                         Err err ->
                             Err err
 
@@ -303,33 +306,38 @@ checkStmt ctx parentId stmt =
                                     Ok ctx2
 
                                 Just else_ ->
-                                    checkBlock ctx2 parentId else_
+                                    checkBlock ctx2 parentPath else_
 
         F80.AST.DefineConst data ->
-            case inferExpr ctx parentId data.value of
+            case inferExpr ctx parentPath data.value of
                 Err err ->
                     Err err
 
                 Ok ( ctx1, type_ ) ->
-                    Ok (Dict.insert (data.name :: parentId) type_ ctx1)
+                    Ok (Dict.insert (InConst data.name :: parentPath) type_ ctx1)
 
         F80.AST.DefineLet data ->
-            case inferExpr ctx parentId data.value of
+            case inferExpr ctx parentPath data.value of
                 Err err ->
                     Err err
 
                 Ok ( ctx1, type_ ) ->
-                    Ok (Dict.insert (data.name :: parentId) type_ ctx1)
+                    Ok (Dict.insert (InLet data.name :: parentPath) type_ ctx1)
 
         F80.AST.Assign data ->
             let
+                varPath : Path
+                varPath =
+                    -- We can only assign to a let variable, not to a const or decl one
+                    InLet data.var :: parentPath
+
                 inferResult =
-                    case Dict.get (data.var :: parentId) ctx of
+                    case Dict.get varPath ctx of
                         Nothing ->
-                            inferExpr ctx parentId data.value
+                            inferExpr ctx parentPath data.value
 
                         Just varType ->
-                            case checkExpr ctx parentId data.value varType of
+                            case checkExpr ctx parentPath data.value varType of
                                 Err err ->
                                     Err err
 
@@ -341,15 +349,19 @@ checkStmt ctx parentId stmt =
                     Err err
 
                 Ok ( ctx1, type_ ) ->
-                    Ok (Dict.insert (data.var :: parentId) type_ ctx1)
+                    Ok (Dict.insert varPath type_ ctx1)
 
         F80.AST.CallStmt data ->
-            case checkCall ctx parentId data of
+            let
+                ctx_ =
+                    updateCtxForPreludeCall data.fn ctx
+            in
+            case checkCall ctx_ parentPath data of
                 Err err ->
                     Err err
 
                 Ok () ->
-                    Ok ctx
+                    Ok ctx_
 
         F80.AST.Return maybeExpr ->
             case maybeExpr of
@@ -357,7 +369,7 @@ checkStmt ctx parentId stmt =
                     Ok ctx
 
                 Just expr ->
-                    case inferExpr ctx parentId expr of
+                    case inferExpr ctx parentPath expr of
                         Err err ->
                             Err err
 
@@ -365,13 +377,36 @@ checkStmt ctx parentId stmt =
                             Ok ctx1
 
 
-inferExpr : Ctx -> ExprId -> F80.AST.Expr -> Result Error ( Ctx, Type )
-inferExpr ctx parentId expr =
+findVar : String -> Path -> Ctx -> Maybe Type
+findVar var path ctx_ =
+    case
+        Maybe.Extra.orList
+            [ Dict.get (InDecl var :: path) ctx_ -- global variable
+            , Dict.get (InParam var :: path) ctx_
+            , Dict.get (InLet var :: path) ctx_
+            , Dict.get (InConst var :: path) ctx_
+            , Dict.get (InVar var :: path) ctx_ -- TODO: unclear if this is needed
+            ]
+    of
+        Just type_ ->
+            Just type_
+
+        Nothing ->
+            case List.Extra.unconsLast path of
+                Nothing ->
+                    Nothing
+
+                Just ( _, path_ ) ->
+                    findVar var path_ ctx_
+
+
+inferExpr : Ctx -> Path -> F80.AST.Expr -> Result Error ( Ctx, Type )
+inferExpr ctx parentPath expr =
     case expr of
         F80.AST.Var id ->
-            case Dict.get (id :: parentId) ctx of
+            case findVar id parentPath ctx of
                 Nothing ->
-                    Err { at = parentId, type_ = VarNotFound { name = id } }
+                    Err { at = parentPath, type_ = VarNotFound { name = id } }
 
                 Just type_ ->
                     Ok ( ctx, type_ )
@@ -392,79 +427,103 @@ inferExpr ctx parentId expr =
             Debug.todo "infer unaryop"
 
         F80.AST.CallExpr data ->
-            Debug.todo "infer call"
+            Debug.todo "infer call - don't forget to add Render.text if used"
 
         F80.AST.IfExpr data ->
             Debug.todo "infer if"
 
 
-checkExpr : Ctx -> ExprId -> F80.AST.Expr -> Type -> Result Error ()
-checkExpr ctx parentId expr type_ =
+checkExpr : Ctx -> Path -> F80.AST.Expr -> Type -> Result Error ()
+checkExpr ctx parentPath expr type_ =
     case expr of
         F80.AST.Var id ->
-            checkEqual parentId type_ U8
+            case findVar id parentPath ctx of
+                Nothing ->
+                    Err { at = parentPath, type_ = VarNotFound { name = id } }
+
+                Just varType ->
+                    checkEqual parentPath type_ varType
 
         F80.AST.Int _ ->
-            checkEqual parentId type_ U8
+            checkEqual parentPath type_ U8
 
         F80.AST.String _ ->
-            checkEqual parentId type_ String
+            checkEqual parentPath type_ String
 
         F80.AST.Bool _ ->
-            checkEqual parentId type_ Bool
+            checkEqual parentPath type_ Bool
 
         F80.AST.BinOp data ->
             case data.op of
                 F80.AST.BOp_Add ->
                     Result.map3 (\() () () -> ())
-                        (checkExpr ctx parentId data.left U8)
-                        (checkExpr ctx parentId data.right U8)
-                        (checkEqual parentId type_ U8)
+                        (checkExpr ctx parentPath data.left U8)
+                        (checkExpr ctx parentPath data.right U8)
+                        (checkEqual parentPath type_ U8)
 
                 F80.AST.BOp_Sub ->
                     Result.map3 (\() () () -> ())
-                        (checkExpr ctx parentId data.left U8)
-                        (checkExpr ctx parentId data.right U8)
-                        (checkEqual parentId type_ U8)
+                        (checkExpr ctx parentPath data.left U8)
+                        (checkExpr ctx parentPath data.right U8)
+                        (checkEqual parentPath type_ U8)
 
                 F80.AST.BOp_Gt ->
                     Result.map3 (\() () () -> ())
-                        (checkExpr ctx parentId data.left U8)
-                        (checkExpr ctx parentId data.right U8)
-                        (checkEqual parentId type_ Bool)
+                        (checkExpr ctx parentPath data.left U8)
+                        (checkExpr ctx parentPath data.right U8)
+                        (checkEqual parentPath type_ Bool)
 
                 F80.AST.BOp_Lt ->
                     Result.map3 (\() () () -> ())
-                        (checkExpr ctx parentId data.left U8)
-                        (checkExpr ctx parentId data.right U8)
-                        (checkEqual parentId type_ Bool)
+                        (checkExpr ctx parentPath data.left U8)
+                        (checkExpr ctx parentPath data.right U8)
+                        (checkEqual parentPath type_ Bool)
 
         F80.AST.UnaryOp data ->
             case data.op of
                 F80.AST.UOp_Not ->
-                    checkExpr ctx parentId data.expr Bool
-                        |> Result.andThen (\() -> checkEqual parentId type_ Bool)
+                    checkExpr ctx parentPath data.expr Bool
+                        |> Result.andThen (\() -> checkEqual parentPath type_ Bool)
 
         F80.AST.CallExpr data ->
-            checkCall ctx parentId data
+            let
+                ctx_ =
+                    updateCtxForPreludeCall data.fn ctx
+            in
+            checkCall ctx_ parentPath data
 
         F80.AST.IfExpr data ->
-            checkExpr ctx parentId data.cond type_
+            checkExpr ctx parentPath data.cond type_
                 |> Result.andThen
                     (\() ->
-                        checkExpr ctx parentId data.then_ type_
+                        checkExpr ctx parentPath data.then_ type_
                             |> Result.andThen
                                 (\() ->
-                                    checkExpr ctx parentId data.else_ type_
+                                    checkExpr ctx parentPath data.else_ type_
                                 )
                     )
 
 
-checkCall : Ctx -> ExprId -> F80.AST.CallData -> Result Error ()
-checkCall ctx parentId data =
-    case Dict.get [ data.fn ] ctx of
+updateCtxForPreludeCall : String -> Ctx -> Ctx
+updateCtxForPreludeCall fnName ctx =
+    List.foldl
+        (\( preludeName, preludeType ) accCtx ->
+            if fnName == preludeName then
+                accCtx
+                    |> Dict.insert [ InDecl preludeName ] preludeType
+
+            else
+                accCtx
+        )
+        ctx
+        prelude
+
+
+checkCall : Ctx -> Path -> F80.AST.CallData -> Result Error ()
+checkCall ctx parentPath data =
+    case Dict.get [ InDecl data.fn ] ctx of
         Nothing ->
-            Err { at = parentId, type_ = FunctionNotFound { name = data.fn } }
+            Err { at = parentPath, type_ = FunctionNotFound { name = data.fn } }
 
         Just ((Function paramsType restType) as fnType) ->
             let
@@ -476,7 +535,7 @@ checkCall ctx parentId data =
             in
             if expectedArity /= actualArity then
                 Err
-                    { at = parentId
+                    { at = parentPath
                     , type_ =
                         FunctionArityMismatch
                             { expected = expectedArity
@@ -493,7 +552,7 @@ checkCall ctx parentId data =
                                     Err err
 
                                 Ok () ->
-                                    case checkExpr ctx parentId arg paramType of
+                                    case checkExpr ctx parentPath arg paramType of
                                         Ok () ->
                                             Ok ()
 
@@ -503,13 +562,13 @@ checkCall ctx parentId data =
                         (Ok ())
 
         Just actual ->
-            Err { at = parentId, type_ = GlobalNotFunction { name = data.fn, actual = actual } }
+            Err { at = parentPath, type_ = GlobalNotFunction { name = data.fn, actual = actual } }
 
 
-checkEqual : ExprId -> Type -> Type -> Result Error ()
-checkEqual parentId expected actual =
+checkEqual : Path -> Type -> Type -> Result Error ()
+checkEqual parentPath expected actual =
     if expected == actual then
         Ok ()
 
     else
-        Err { at = parentId, type_ = TypeMismatch { expected = expected, actual = actual } }
+        Err { at = parentPath, type_ = TypeMismatch { expected = expected, actual = actual } }

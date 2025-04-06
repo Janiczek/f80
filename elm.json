@@ -13,6 +13,7 @@
             "elm/parser": "1.1.0",
             "elmcraft/core-extra": "2.1.0",
             "miniBill/elm-diff": "1.1.0",
+            "pzp1997/assoc-list": "1.0.0",
             "wolfadex/elm-ansi": "3.0.0"
         },
         "indirect": {

@@ -7,9 +7,9 @@ Local variables are passed on the stack.
 
 Function return values and expressions are emitted to the register A, unless
 they're a pointer (like to a string) in which case they don't fit into a single
-8bit register and they'll be in HL.
+8bit register and they'll be in DE.
 
-TODO: make everything be in H or HL? Or make things be on the stack?
+TODO: make everything be in D or DE? Or make things be on the stack?
 
 -}
 
@@ -39,30 +39,37 @@ import F80.AST.ToString
 import F80.Emitter.Global
 import F80.Emitter.Output as Output exposing (Output)
 import F80.Emitter.State as State exposing (State)
-import F80.Emitter.Util as Util exposing (ctxLabel, i, l)
+import F80.Emitter.Util as Util exposing (i, l)
 import F80.Emitter.WaitForKeypress
+import F80.Path exposing (Step(..))
+import F80.Type
+import F80.Typer
 import List.Extra
 import NonemptyList
 import Set
 
 
-emit : Program -> List String
+emit : Program -> Result F80.Typer.Error (List String)
 emit program =
-    List.Extra.indexedFoldl
-        (\ix decl outputAndState ->
-            case decl of
-                GlobalDecl data ->
-                    outputAndState
-                        |> State.emit (F80.Emitter.Global.emit data)
+    F80.Typer.findTypes program
+        |> Result.map
+            (\types ->
+                List.Extra.indexedFoldl
+                    (\ix decl outputAndState ->
+                        case decl of
+                            GlobalDecl data ->
+                                outputAndState
+                                    |> State.withContext (InDecl data.name) (F80.Emitter.Global.emit data)
 
-                FnDecl data ->
-                    outputAndState
-                        |> State.withContext ("decl_" ++ String.fromInt ix) (emitFnDecl data)
-        )
-        (State.initWith State.empty)
-        program
-        |> Tuple.first
-        |> Output.toString
+                            FnDecl data ->
+                                outputAndState
+                                    |> State.withContext (InDecl data.name) (emitFnDecl data)
+                    )
+                    (State.initWith (State.empty types))
+                    program
+                    |> Tuple.first
+                    |> Output.toString
+            )
 
 
 {-| We assume the args will have been put on the stack during the function calls (emitCallArgs).
@@ -87,29 +94,25 @@ emitFnDecl fnData state =
                     |> State.otherBlock fnData.name fn
     in
     State.initWith state
-        |> State.withContext fnData.name
-            (\stateFn ->
-                State.initWith stateFn
-                    |> State.withFrame
-                        { name = fnData.name
-                        , params = fnData.params
-                        , type_ =
-                            if isMain then
-                                State.MainFn
+        |> State.withFrame
+            { name = fnData.name
+            , params = fnData.params
+            , type_ =
+                if isMain then
+                    State.MainFn
 
-                            else
-                                State.NonMainFn
-                        }
-                        (\stateFnFrame ->
-                            State.initWith stateFnFrame
-                                |> State.lift_SOS_OSOS
-                                    (blockFn
-                                        (\s ->
-                                            State.initWith s
-                                                |> State.l fnData.name
-                                                |> State.emit (emitBlockWithoutFrame { isMain = isMain } fnData.body)
-                                        )
-                                    )
+                else
+                    State.NonMainFn
+            }
+            (\stateFnFrame ->
+                State.initWith stateFnFrame
+                    |> State.lift_SOS_OSOS
+                        (blockFn
+                            (\s ->
+                                State.initWith s
+                                    |> State.l fnData.name
+                                    |> State.emit (emitBlockWithoutFrame { isMain = isMain } fnData.body)
+                            )
                         )
             )
 
@@ -124,7 +127,7 @@ type alias FnInfo =
 emitStmt : FnInfo -> Int -> Stmt -> State -> ( Output, State )
 emitStmt fnInfo ix stmt state =
     State.initWith state
-        |> State.withContext (String.fromInt ix)
+        |> State.withContext (InStmt ix)
             (\stateIx ->
                 case stmt of
                     WaitForKeypress data ->
@@ -133,10 +136,10 @@ emitStmt fnInfo ix stmt state =
                     Loop block ->
                         let
                             label =
-                                Util.ctxLabel stateIx.ctx
+                                F80.Path.toLabel stateIx.path
                         in
                         State.initWith stateIx
-                            |> State.withContext "loop"
+                            |> State.withContext InLoop
                                 (\stateIxLoop ->
                                     State.initWith stateIxLoop
                                         |> State.l label
@@ -215,7 +218,7 @@ emitIfStmt : FnInfo -> IfStmtData -> State -> ( Output, State )
 emitIfStmt fnInfo ifData state =
     let
         ctxLabel =
-            Util.ctxLabel state.ctx
+            F80.Path.toLabel state.path
 
         labelPrefix =
             "_ifstmt_" ++ ctxLabel ++ "_"
@@ -223,14 +226,15 @@ emitIfStmt fnInfo ifData state =
         endLabel =
             labelPrefix ++ "end"
     in
+    -- TODO do we need to wrap this all in an InIfStmt?
     case ifData.else_ of
         Nothing ->
             State.initWith state
-                |> State.withContext "cond" (emitExpr ifData.cond)
+                |> State.withContext InIfCond (emitExpr ifData.cond)
                 |> State.i ("cp " ++ emitBool True)
                 |> State.i ("jp nz," ++ endLabel)
                 -- then:
-                |> State.withContext "then" (emitBlock fnInfo "$then" ifData.then_)
+                |> State.withContext InIfThen (emitBlock fnInfo "$then" ifData.then_)
                 -- end:
                 |> State.l endLabel
 
@@ -240,15 +244,15 @@ emitIfStmt fnInfo ifData state =
                     labelPrefix ++ "else"
             in
             State.initWith state
-                |> State.withContext "cond" (emitExpr ifData.cond)
+                |> State.withContext InIfCond (emitExpr ifData.cond)
                 |> State.i ("cp " ++ emitBool True)
                 |> State.i ("jp nz," ++ elseLabel)
                 -- then:
-                |> State.withContext "then" (emitBlock fnInfo "$then" ifData.then_)
+                |> State.withContext InIfThen (emitBlock fnInfo "$then" ifData.then_)
                 |> State.i ("jp " ++ endLabel)
                 -- else:
                 |> State.l elseLabel
-                |> State.withContext "else" (emitBlock fnInfo "$else" else_)
+                |> State.withContext InIfElse (emitBlock fnInfo "$else" else_)
                 -- end:
                 |> State.l endLabel
 
@@ -478,7 +482,12 @@ emitCallU8DivMod callData =
             Debug.todo "emitCallU8DivMod - unexpected number of arguments"
 
 
-{-| Loads the value into the register A, unless it's a String var, which goes to HL.
+varType : String -> State -> Maybe F80.Type.Type
+varType var state =
+    F80.Typer.findVar var state.path state.types
+
+
+{-| Loads the value into the register A, unless it's a String var, which goes to DE.
 -}
 emitExpr : Expr -> State -> ( Output, State )
 emitExpr expr state =
@@ -492,8 +501,8 @@ emitExpr expr state =
                 Var var ->
                     State.initWith state
                         |> (if Set.member var state.globalVars then
-                                if Debug.todo "is global var a string" then
-                                    State.i ("ld hl," ++ var)
+                                if varType var state == Just F80.Type.String then
+                                    State.i ("ld de," ++ var)
 
                                 else
                                     State.i ("ld a," ++ var)
@@ -508,7 +517,7 @@ emitExpr expr state =
                                             os
                                                 |> State.i ("ld ix," ++ String.fromInt (State.currentBaseOffset state))
                                                 |> State.i "add ix,sp"
-                                                |> (if Debug.todo "is local var a string" then
+                                                |> (if varType var state == Just F80.Type.String then
                                                         \os2 ->
                                                             os2
                                                                 -- TODO recheck this
@@ -535,24 +544,24 @@ emitExpr expr state =
                             case data.op of
                                 BOp_Add ->
                                     State.initWith stateBinop
-                                        |> {- a = R -} State.withContext "right" (emitExpr data.right)
+                                        |> {- a = R -} State.withContext InBinOpRight (emitExpr data.right)
                                         |> State.push "af" { countAsExtra = True }
-                                        |> {- a = L -} State.withContext "left" (emitExpr data.left)
+                                        |> {- a = L -} State.withContext InBinOpLeft (emitExpr data.left)
                                         |> {- b = R -} State.pop "bc" { countAsExtra = True }
                                         |> {- a = L + R -} State.i "add b"
 
                                 BOp_Sub ->
                                     State.initWith stateBinop
-                                        |> {- a = R -} State.withContext "right" (emitExpr data.right)
+                                        |> {- a = R -} State.withContext InBinOpRight (emitExpr data.right)
                                         |> State.push "af" { countAsExtra = True }
-                                        |> {- a = L -} State.withContext "left" (emitExpr data.left)
+                                        |> {- a = L -} State.withContext InBinOpLeft (emitExpr data.left)
                                         |> {- b = R -} State.pop "bc" { countAsExtra = True }
                                         |> {- a = L - R -} State.i "sub b"
 
                                 BOp_Gt ->
                                     let
                                         ctxLabel =
-                                            Util.ctxLabel stateBinop.ctx
+                                            F80.Path.toLabel stateBinop.path
 
                                         prefix =
                                             "_gt_" ++ ctxLabel ++ "_"
@@ -564,9 +573,9 @@ emitExpr expr state =
                                             prefix ++ "onGT"
                                     in
                                     State.initWith stateBinop
-                                        |> {- a = L -} State.withContext "left" (emitExpr data.left)
+                                        |> {- a = L -} State.withContext InBinOpLeft (emitExpr data.left)
                                         |> State.push "af" { countAsExtra = True }
-                                        |> {- a = R -} State.withContext "right" (emitExpr data.right)
+                                        |> {- a = R -} State.withContext InBinOpRight (emitExpr data.right)
                                         |> {- b = L -} State.pop "bc" { countAsExtra = True }
                                         |> {- carry = L <= R -} State.i "cp b"
                                         |> State.i ("jp nc," ++ onGTLabel)
@@ -581,7 +590,7 @@ emitExpr expr state =
                                 BOp_Lt ->
                                     let
                                         ctxLabel =
-                                            Util.ctxLabel stateBinop.ctx
+                                            F80.Path.toLabel stateBinop.path
 
                                         prefix =
                                             "_lt_" ++ ctxLabel ++ "_"
@@ -593,9 +602,9 @@ emitExpr expr state =
                                             prefix ++ "onLT"
                                     in
                                     State.initWith stateBinop
-                                        |> {- a = R -} State.withContext "right" (emitExpr data.right)
+                                        |> {- a = R -} State.withContext InBinOpRight (emitExpr data.right)
                                         |> State.push "af" { countAsExtra = True }
-                                        |> {- a = L -} State.withContext "left" (emitExpr data.left)
+                                        |> {- a = L -} State.withContext InBinOpLeft (emitExpr data.left)
                                         |> {- b = R -} State.pop "bc" { countAsExtra = True }
                                         |> {- carry = L >= R -} State.i "cp b"
                                         |> State.i ("jp nc," ++ onLTLabel)
@@ -608,7 +617,7 @@ emitExpr expr state =
                                         |> State.l endLabel
                     in
                     State.initWith state
-                        |> State.withContext "binop" fn
+                        |> State.withContext InBinOp fn
 
                 UnaryOp data ->
                     let
@@ -622,7 +631,7 @@ emitExpr expr state =
                                         |> State.i "neg"
                     in
                     State.initWith state
-                        |> State.withContext "unaryop" fn
+                        |> State.withContext InUnaryOp fn
 
                 CallExpr data ->
                     emitCall data state
@@ -640,7 +649,7 @@ emitIfExpr : IfExprData -> State -> ( Output, State )
 emitIfExpr data state =
     let
         ctxLabel =
-            Util.ctxLabel state.ctx
+            F80.Path.toLabel state.path
 
         labelPrefix =
             "_ifexpr_" ++ ctxLabel ++ "_"
@@ -652,16 +661,16 @@ emitIfExpr data state =
             labelPrefix ++ "else"
     in
     State.initWith state
-        |> State.withContext "if"
+        |> State.withContext InIf
             (\stateIf ->
                 State.initWith stateIf
-                    |> State.withContext "cond" (emitExpr data.cond)
+                    |> State.withContext InIfCond (emitExpr data.cond)
                     |> State.i ("cp " ++ emitBool True)
                     |> State.i ("jp nz," ++ elseLabel)
-                    |> State.withContext "then" (emitExpr data.then_)
+                    |> State.withContext InIfThen (emitExpr data.then_)
                     |> State.i ("jp " ++ endLabel)
                     |> State.l elseLabel
-                    |> State.withContext "else" (emitExpr data.else_)
+                    |> State.withContext InIfElse (emitExpr data.else_)
                     |> State.l endLabel
             )
 

@@ -1340,7 +1340,7 @@ main() {}
                             [ FnDecl
                                 { name = "main"
                                 , params = []
-                                , returnType = F80.Type.U8
+                                , returnType = F80.Type.Unit
                                 , body = []
                                 }
                             ]
@@ -1356,7 +1356,7 @@ main() {} // Comment
                             [ FnDecl
                                 { name = "main"
                                 , params = []
-                                , returnType = F80.Type.U8
+                                , returnType = F80.Type.Unit
                                 , body = []
                                 }
                             ]
@@ -1374,7 +1374,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
-                                , returnType = F80.Type.U8
+                                , returnType = F80.Type.Unit
                                 , body = []
                                 }
                             ]
@@ -1391,7 +1391,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
-                                , returnType = F80.Type.U8
+                                , returnType = F80.Type.Unit
                                 , body = []
                                 }
                             ]
@@ -1409,7 +1409,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
-                                , returnType = F80.Type.U8
+                                , returnType = F80.Type.Unit
                                 , body = []
                                 }
                             ]
@@ -1429,7 +1429,7 @@ main() {
                             [ FnDecl
                                 { name = "main"
                                 , params = []
-                                , returnType = F80.Type.U8
+                                , returnType = F80.Type.Unit
                                 , body =
                                     [ CallStmt { fn = "foo", args = [] }
                                     , CallStmt { fn = "bar", args = [] }
@@ -1450,13 +1450,13 @@ foo() {}
                             [ FnDecl
                                 { name = "main"
                                 , params = []
-                                , returnType = F80.Type.U8
+                                , returnType = F80.Type.Unit
                                 , body = []
                                 }
                             , FnDecl
                                 { name = "foo"
                                 , params = []
-                                , returnType = F80.Type.U8
+                                , returnType = F80.Type.Unit
                                 , body = []
                                 }
                             ]

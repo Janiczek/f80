@@ -1,16 +1,17 @@
 module TyperTest exposing (suite)
 
-import Dict
+import AssocList as Dict exposing (Dict)
 import Expect
 import F80.AST exposing (Decl, Expr, Program, Stmt)
 import F80.Lower
 import F80.Parser
+import F80.Path exposing (Path, Step(..))
 import F80.Type exposing (Type(..))
-import F80.Typer exposing (ExprId)
+import F80.Typer
 import Test exposing (Test)
 
 
-test_ : String -> List ( ExprId, Type ) -> Test
+test_ : String -> List ( Path, Type ) -> Test
 test_ sourceCode expected =
     Test.test ("Typing: " ++ sourceCode) <|
         \() ->
@@ -21,11 +22,11 @@ test_ sourceCode expected =
                         |> F80.Typer.findTypes
                         |> Result.map
                             (Dict.toList
-                                >> List.sortBy Tuple.first
+                                >> List.sortBy (Tuple.first >> F80.Path.toString)
                             )
                         |> Expect.equal
                             (expected
-                                |> List.sortBy Tuple.first
+                                |> List.sortBy (Tuple.first >> F80.Path.toString)
                                 |> Ok
                             )
 
@@ -50,12 +51,11 @@ testErr sourceCode expectedErr =
 
 suite : Test
 suite =
-    Test.only <|
-        Test.describe "F80.Typer.findTypes"
-            [ globals
-            , fnDecls
-            , exprs
-            ]
+    Test.describe "F80.Typer.findTypes"
+        [ globals
+        , fnDecls
+        , exprs
+        ]
 
 
 globals : Test
@@ -88,14 +88,14 @@ main(a: U8) {
     return a
 }
             """
-            { at = [ "main" ], type_ = F80.Typer.FunctionArityMismatch { expected = 0, actual = 1 } }
+            { at = [ InDecl "main" ], type_ = F80.Typer.MainFnFunctionArityMismatch { actual = 1 } }
         , testErr
             """
 main(): U8 {
     return 1
 }
             """
-            { at = [ "main" ], type_ = F80.Typer.ReturnTypeMismatch { expected = Unit, actual = U8 } }
+            { at = [ InDecl "main" ], type_ = F80.Typer.MainFnReturnTypeMismatch { actual = U8 } }
         ]
 
 
@@ -114,7 +114,7 @@ intGlobal =
             """
 const x = 1;            
             """
-            [ ( [ "x" ], U8 ) ]
+            [ ( [ InDecl "x" ], U8 ) ]
         ]
 
 
@@ -125,7 +125,7 @@ stringGlobal =
             """
 const abc = "ABC"
             """
-            [ ( [ "abc" ], String ) ]
+            [ ( [ InDecl "abc" ], String ) ]
         ]
 
 
@@ -137,16 +137,16 @@ varGlobal =
 const x = 1
 const y = x
             """
-            [ ( [ "x" ], U8 )
-            , ( [ "y" ], U8 )
+            [ ( [ InDecl "x" ], U8 )
+            , ( [ InDecl "y" ], U8 )
             ]
         , test_
             """
 const x = "abc"
 const y = x
             """
-            [ ( [ "x" ], String )
-            , ( [ "y" ], String )
+            [ ( [ InDecl "x" ], String )
+            , ( [ InDecl "y" ], String )
             ]
         ]
 
@@ -159,8 +159,8 @@ boolGlobal =
 const x = true
 const y = false
             """
-            [ ( [ "x" ], Bool )
-            , ( [ "y" ], Bool )
+            [ ( [ InDecl "x" ], Bool )
+            , ( [ InDecl "y" ], Bool )
             ]
         ]
 
@@ -172,7 +172,7 @@ bytesGlobal =
             """
 const x = [1,2,3]
             """
-            [ ( [ "x" ], Bytes ) ]
+            [ ( [ InDecl "x" ], Bytes ) ]
         ]
 
 
@@ -186,18 +186,18 @@ const y = 3 - 4
 const z = 5 > 6
 const w = 7 < 8
             """
-            [ ( [ "x" ], U8 )
-            , ( [ "y" ], U8 )
-            , ( [ "z" ], Bool )
-            , ( [ "w" ], Bool )
+            [ ( [ InDecl "x" ], U8 )
+            , ( [ InDecl "y" ], U8 )
+            , ( [ InDecl "z" ], Bool )
+            , ( [ InDecl "w" ], Bool )
             ]
         , test_
             """
 const x = 1
 const y = x + 1
             """
-            [ ( [ "x" ], U8 )
-            , ( [ "y" ], U8 )
+            [ ( [ InDecl "x" ], U8 )
+            , ( [ InDecl "y" ], U8 )
             ]
         ]
 
@@ -209,7 +209,7 @@ unaryopGlobal =
             """
 const y = !true
             """
-            [ ( [ "y" ], Bool )
+            [ ( [ InDecl "y" ], Bool )
             ]
         ]
 
@@ -221,15 +221,15 @@ strlenGlobal =
             """
 const x = String.length("hello")
             """
-            [ ( [ "x" ], U8 )
+            [ ( [ InDecl "x" ], U8 )
             ]
         , test_
             """
 const x = String.length("hello")
 const y = x
             """
-            [ ( [ "x" ], U8 )
-            , ( [ "y" ], U8 )
+            [ ( [ InDecl "x" ], U8 )
+            , ( [ InDecl "y" ], U8 )
             ]
         ]
 
@@ -243,8 +243,8 @@ main() {
     const x = 1
 }
             """
-            [ ( [ "x", "main" ], U8 )
-            , ( [ "main" ], Function [] Unit )
+            [ ( [ InConst "x", InDecl "main" ], U8 )
+            , ( [ InDecl "main" ], Function [] Unit )
             ]
         ]
 
@@ -258,7 +258,8 @@ main() {
     const abc = "ABC"
 }
             """
-            [ ( [ "abc", "main" ], String )
-            , ( [ "main" ], Function [] Unit )
+            [ ( [ InDecl "_string_0_0" ], String )
+            , ( [ InConst "abc", InDecl "main" ], String )
+            , ( [ InDecl "main" ], Function [] Unit )
             ]
         ]

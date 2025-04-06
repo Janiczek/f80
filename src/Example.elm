@@ -38,7 +38,7 @@ renderStaticText() {
   Render.text(5, 7, "Press J (-) or K (+)")
 }
 
-renderCounter(counter) {
+renderCounter(counter: U8) {
   Render.text(14, 5, "   ")
   const counterStr = String.fromU8(counter)
   Render.text(14, 5, counterStr)

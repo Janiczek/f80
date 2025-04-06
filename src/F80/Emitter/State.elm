@@ -1,5 +1,6 @@
 module F80.Emitter.State exposing
     ( State, empty, mapState, initWith, forEach, forEachIndexed
+    , getType
     , Frame, FrameType(..)
     , VarType(..)
     , stackItemSize
@@ -17,6 +18,7 @@ module F80.Emitter.State exposing
 {-|
 
 @docs State, empty, mapState, initWith, forEach, forEachIndexed
+@docs getType
 @docs Frame, FrameType
 @docs VarType
 @docs stackItemSize
@@ -28,6 +30,11 @@ module F80.Emitter.State exposing
 # Context (for labels)
 
 @docs withContext
+
+
+# Type checking
+
+@docs getType
 
 
 # Frames (functions, blocks)
@@ -52,10 +59,14 @@ module F80.Emitter.State exposing
 
 -}
 
+import AssocList as ADict
 import Dict exposing (Dict)
 import F80.AST exposing (Param)
 import F80.Emitter.Output as Output exposing (Output)
 import F80.Emitter.Util as Util exposing (i)
+import F80.Path exposing (Path, Step)
+import F80.Type exposing (Type)
+import F80.Typer
 import Html.Attributes exposing (id)
 import List.Extra
 import NonemptyList exposing (NonemptyList)
@@ -63,7 +74,8 @@ import Set exposing (Set)
 
 
 type alias State =
-    { ctx : List String
+    { path : Path
+    , types : F80.Typer.Ctx
     , stackFrames : NonemptyList Frame
     , globalVars : Set String
     }
@@ -97,9 +109,10 @@ stackItemSize =
     2
 
 
-empty : State
-empty =
-    { ctx = []
+empty : F80.Typer.Ctx -> State
+empty types =
+    { path = []
+    , types = types
     , stackFrames =
         NonemptyList.singleton
             { id = "__root"
@@ -178,22 +191,22 @@ forEachIndexed list fn os =
 -- Context
 
 
-pushContext : String -> State -> State
+pushContext : Step -> State -> State
 pushContext addition state =
-    { state | ctx = addition :: state.ctx }
+    { state | path = addition :: state.path }
 
 
 popContext : State -> State
 popContext state =
-    { state | ctx = List.drop 1 state.ctx }
+    { state | path = List.drop 1 state.path }
 
 
-withContext : String -> (State -> ( Output, State )) -> ( Output, State ) -> ( Output, State )
-withContext contextName fn ( output, state ) =
+withContext : Step -> (State -> ( Output, State )) -> ( Output, State ) -> ( Output, State )
+withContext step fn ( output, state ) =
     let
         ( output2, state2 ) =
             state
-                |> pushContext contextName
+                |> pushContext step
                 |> fn
     in
     ( Output.smush output output2
@@ -311,7 +324,7 @@ addLocalVar { type_ } name state =
                                                 "BUG: shadowing of local {VAR} in frame {FRAME} (context: {CTX}). Should have been caught by the type checker"
                                                     |> String.replace "{VAR}" name
                                                     |> String.replace "{FRAME}" frame.id
-                                                    |> String.replace "{CTX}" (String.join "." state.ctx)
+                                                    |> String.replace "{CTX}" (F80.Path.toString state.path)
                                                     |> Debug.todo
                                     )
                                     frame.locals
@@ -518,3 +531,8 @@ mapCurrentFrame fn =
 addOutput : Output -> ( Output, State ) -> ( Output, State )
 addOutput output ( output2, state ) =
     ( Output.smush output output2, state )
+
+
+getType : Path -> State -> Maybe Type
+getType path state =
+    ADict.get path state.types

@@ -3,8 +3,7 @@ port module F80 exposing (main)
 import Example
 import F80.Emitter
 import F80.Error
-import F80.Lower.AddImplicitReturns
-import F80.Lower.HoistStringLiterals
+import F80.Lower
 import F80.Parser
 import Parser
 
@@ -26,10 +25,8 @@ run sourceCode =
     Ok sourceCode
         |> Result.andThen (F80.Parser.parse >> Result.mapError F80.Error.ParserError)
         --|> Debug.log "parsed"
-        |> Result.map F80.Lower.HoistStringLiterals.hoist
-        |> Result.map F80.Lower.AddImplicitReturns.add
-        -- TODO: F80.TypeInference.infer
-        |> Result.map F80.Emitter.emit
+        |> Result.map F80.Lower.lower
+        |> Result.andThen (F80.Emitter.emit >> Result.mapError F80.Error.TyperError)
         --|> Debug.log "emitted"
         |> Result.map (String.join "\n")
 

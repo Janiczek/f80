@@ -16,6 +16,7 @@ import F80.AST
         )
 import F80.Emitter
 import F80.Emitter.Util
+import F80.Error
 import F80.Lower
 import F80.Parser
 import Fuzz exposing (Fuzzer)
@@ -84,11 +85,17 @@ testEmit : String -> String -> Test
 testEmit source expected =
     Test.test ("Emitting: " ++ source) <|
         \() ->
-            case F80.Parser.parse source of
-                Ok decls ->
-                    decls
-                        |> F80.Lower.lower
-                        |> F80.Emitter.emit
+            case
+                Ok source
+                    |> Result.andThen (F80.Parser.parse >> Result.mapError F80.Error.ParserError)
+                    |> Result.map F80.Lower.lower
+                    |> Result.andThen (F80.Emitter.emit >> Result.mapError F80.Error.TyperError)
+            of
+                Err err ->
+                    Expect.fail ("Failed: " ++ Debug.toString err)
+
+                Ok asm ->
+                    asm
                         |> String.join "\n"
                         {-
                            |> (\s ->
@@ -97,16 +104,13 @@ testEmit source expected =
                                            Debug.log s "actual"
                                    in
                                    s
-                              )
+                               )
                         -}
                         |> expectEqualMultiline
                             (expected
                                 |> String.trim
                                 |> removeCommentsAndEmptyLines
                             )
-
-                Err err ->
-                    Expect.fail ("Failed to parse source: " ++ Debug.toString err)
 
 
 suite : Test
@@ -126,15 +130,15 @@ complex =
         [ testEmit
             """
 // passing multiple args, out of order
-main() {
-    const x = 1
-    let y = 2
-    return fn(y,x)
-}
-fn(a,b) {
+fn(a: U8, b: U8): U8 {
     const c = 3
     const d = 4
     return a + b + c + d
+}
+main() {
+    const x = 1
+    let y = 2
+    const z = fn(y,x)
 }
             """
             """
@@ -193,14 +197,14 @@ fn:             ; -> stack = A(=Y),B(=X),RET, our base offset is 6 (for now)
         , testEmit
             """
 // lexical scope: main should return 1
+fn(): U8 {
+    let x = 2
+    return x
+}
 main() {
     let x = 1
     fn()
-    return x
-}
-fn() {
-    let x = 2
-    return x
+    const y = x
 }
             """
             """
@@ -212,7 +216,7 @@ main:
     ld ix,2
     add ix,sp
     ld a,(ix-1) ; we'll overwrite it with _our_ local `a`
-    jp _end
+    push af
 _end:
     jp _end
 fn:
@@ -229,20 +233,20 @@ fn:
         , testEmit
             """
 // multiple function calls (next to each other), tests whether we're cleaning up the stack correctly after function calls
-main() {
-    return foo(1) + bar(2,3) + baz(4,5,6)
-}
-foo(a) {
+foo(a: U8): U8 {
     const x = 7
     return a + x
 }
-bar(a, b) {
+bar(a: U8, b: U8): U8 {
     const y = 8
     return a + b + y
 }
-baz(a, b, c) {
+baz(a: U8, b: U8, c: U8): U8 {
     const z = 9
     return a + b + c + z
+}
+main() {
+    const x = foo(1) + bar(2,3) + baz(4,5,6)
 }
             """
             """
@@ -351,18 +355,18 @@ foo:
         , testEmit
             """
 // nested function calls
-main() {
-    let x = 1
-    return foo(x) + 2
-    // -> 1+3+1+4+3+2 = 14
+bar(y: U8, a: U8): U8 {
+    let z = 4
+    return a + z + y
 }
-foo(a) {
+foo(a: U8): U8 {
     let y = 3
     return a + y + bar(y,a)
 }
-bar(y,a) {
-    let z = 4
-    return a + z + y
+main() {
+    let x = 1
+    let y = foo(x) + 2
+    // -> 1+3+1+4+3+2 = 14
 }
             """
             """
@@ -464,7 +468,6 @@ assignStmts =
 main() {
     let x = 1
     x = 2
-    return x // we should return 2
 }
             """
             """
@@ -478,13 +481,6 @@ main:
     ld ix,2
     add ix,sp
     ld (ix-1),a
-
-    ; load var from the stack
-    ld ix,2
-    add ix,sp
-    ld a,(ix-1)
-
-    jp _end
 _end:
     jp _end
             """
@@ -538,30 +534,39 @@ _end:
             """
         , testEmit
             """
-main() {
+foo(): U8 {
     let x = 1
     x += 2
     return x // we should return 3
+}
+
+main() {
+    foo()
 }
             """
             """
 org 0x8000
 main:
+    call foo
+_end:
+    jp _end
+foo:
     ld a,1
     push af
     ld a,2
     ld b,a
-    ld ix,2
+    ld ix,4
     add ix,sp
-    ld a,(ix-1)
+    ld a,(ix-3)
     add b
-    ld (ix-1),a
+    ld (ix-3),a
+    ld ix,4
+    add ix,sp
+    ld a,(ix-3)
     ld ix,2
     add ix,sp
-    ld a,(ix-1)
-    jp _end
-_end:
-    jp _end
+    ld sp,ix
+    ret
             """
         , testEmit
             """
@@ -688,7 +693,7 @@ foo:
     push af
     ld a,255    ; IF
     cp 255
-    jp nz,_ifstmt_decl_1_foo_2_end
+    jp nz,_ifstmt_decl_main_foo_2_end
     ; THEN --------------------------
     ld a,3
     push af     ; save x at offset 7
@@ -714,7 +719,7 @@ foo:
     ld sp,ix
     ; END THEN --------------------------
     ; NO ELSE ---------------------------
-_ifstmt_decl_1_foo_2_end:
+_ifstmt_decl_main_foo_2_end:
     ld ix,6
     add ix,sp
     ld a,(ix-5) ; load y
@@ -787,11 +792,11 @@ generic0ArgCallStmt =
     Test.describe "generic 0-arg call stmt"
         [ testEmit
             """
+fn(): U8{
+    return 1
+}
 main(){
     fn()
-}
-fn(){
-    return 1
 }
             """
             """
@@ -812,11 +817,11 @@ generic1ArgCallStmt =
     Test.describe "generic 1-arg call stmt"
         [ testEmit
             """
+fn(a: U8): U8 {
+    return a
+}
 main(){
     fn(1)
-}
-fn(a){
-    return a
 }
             """
             """
@@ -844,11 +849,11 @@ generic2ArgCallStmt =
     Test.describe "generic 2-arg call stmt"
         [ testEmit
             """
+fn(a: U8, b: U8): U8 {
+    return a + b
+}
 main(){
     fn(1,2)
-}
-fn(a,b){
-    return a + b
 }
             """
             """
@@ -884,11 +889,11 @@ generic5ArgCallStmt =
     Test.describe "generic 5-arg call stmt"
         [ testEmit
             """
+fn(a: U8, b: U8, c: U8, d: U8, e: U8): U8 {
+    return a + b + c + d + e
+}
 main(){
     fn(1,2,3,4,5)
-}
-fn(a,b,c,d,e){
-    return a + b + c + d + e
 }
             """
             """
@@ -1109,14 +1114,6 @@ _end:
 binop db 1 > 2
             """
         , testEmit
-            "const unop = -5"
-            """
-org 0x8000
-_end:
-    jp _end
-unop db - 5
-            """
-        , testEmit
             "const unop = !true"
             """
 org 0x8000
@@ -1189,7 +1186,7 @@ main:
 _end:
     jp _end
 _renderText:
-    ld a, AT
+    ld a,AT
     rst 0x10
     ld a,l
     rst 0x10
@@ -1221,7 +1218,7 @@ main:
 _end:
     jp _end
 _renderText:
-    ld a, AT
+    ld a,AT
     rst 0x10
     ld a,l
     rst 0x10
@@ -1258,7 +1255,7 @@ main:
 _end:
     jp _end
 _renderText:
-    ld a, AT
+    ld a,AT
     rst 0x10
     ld a,l
     rst 0x10
@@ -1295,9 +1292,9 @@ org 0x8000
 main:
     ld a,255
     cp 255
-    jp nz,_ifstmt_decl_0_main_0_end
+    jp nz,_ifstmt_decl_main_stmt_0_end
     call ROM_CLS
-_ifstmt_decl_0_main_0_end:
+_ifstmt_decl_main_stmt_0_end:
 _end:
     jp _end
             """
@@ -1318,12 +1315,12 @@ org 0x8000
 main:
     ld a,255
     cp 255
-    jp nz,_ifstmt_decl_0_main_0_else
+    jp nz,_ifstmt_decl_main_stmt_0_else
     call ROM_CLS
-    jp _ifstmt_decl_0_main_0_end
-_ifstmt_decl_0_main_0_else:
+    jp _ifstmt_decl_main_stmt_0_end
+_ifstmt_decl_main_stmt_0_else:
     call ROM_CLS
-_ifstmt_decl_0_main_0_end:
+_ifstmt_decl_main_stmt_0_end:
 _end:
     jp _end
             """
@@ -1345,16 +1342,16 @@ main:
     ld a,1
     pop bc
     cp b
-    jp nc,_lt_decl_0_main_0_cond_binop_onLT
+    jp nc,_lt_decl_main_stmt_0_cond_binop_onLT
     ld a,0
-    jp _lt_decl_0_main_0_cond_binop_end
-_lt_decl_0_main_0_cond_binop_onLT:
+    jp _lt_decl_main_stmt_0_cond_binop_end
+_lt_decl_main_stmt_0_cond_binop_onLT:
     ld a,255
-_lt_decl_0_main_0_cond_binop_end:
+_lt_decl_main_stmt_0_cond_binop_end:
     cp 255
-    jp nz,_ifstmt_decl_0_main_0_end
+    jp nz,_ifstmt_decl_main_stmt_0_end
     call ROM_CLS
-_ifstmt_decl_0_main_0_end:
+_ifstmt_decl_main_stmt_0_end:
 _end:
     jp _end
             """
@@ -1376,16 +1373,16 @@ main:
     ld a,2
     pop bc
     cp b
-    jp nc,_gt_decl_0_main_0_cond_binop_onGT
+    jp nc,_gt_decl_main_stmt_0_cond_binop_onGT
     ld a,0
-    jp _gt_decl_0_main_0_cond_binop_end
-_gt_decl_0_main_0_cond_binop_onGT:
+    jp _gt_decl_main_stmt_0_cond_binop_end
+_gt_decl_main_stmt_0_cond_binop_onGT:
     ld a,255
-_gt_decl_0_main_0_cond_binop_end:
+_gt_decl_main_stmt_0_cond_binop_end:
     cp 255
-    jp nz,_ifstmt_decl_0_main_0_end
+    jp nz,_ifstmt_decl_main_stmt_0_end
     call ROM_CLS
-_ifstmt_decl_0_main_0_end:
+_ifstmt_decl_main_stmt_0_end:
 _end:
     jp _end
             """
@@ -1406,9 +1403,9 @@ org 0x8000
 main:
     call fn
     cp 255
-    jp nz,_ifstmt_decl_1_main_0_end
+    jp nz,_ifstmt_decl_main_stmt_0_end
     call ROM_CLS
-_ifstmt_decl_1_main_0_end:
+_ifstmt_decl_main_stmt_0_end:
 _end:
     jp _end
 fn:
@@ -1435,15 +1432,15 @@ AT EQU 0x16
 hello_length EQU 5
 org 0x8000
 main:
-decl_1_main_0:
+decl_main_stmt_0:
     ld hl,0
     ld de,hello
     call _renderText
-    jp decl_1_main_0
+    jp decl_main_stmt_0
 _end:
     jp _end
 _renderText:
-    ld a, AT
+    ld a,AT
     rst 0x10
     ld a,l
     rst 0x10
@@ -1474,17 +1471,17 @@ AT EQU 0x16
 hello_length EQU 5
 org 0x8000
 main:
-decl_1_main_0:
-decl_1_main_0_loop_0:
+decl_main_stmt_0:
+decl_main_stmt_0_loop_stmt_0:
     ld hl,0
     ld de,hello
     call _renderText
-    jp decl_1_main_0_loop_0
-    jp decl_1_main_0
+    jp decl_main_stmt_0_loop_stmt_0
+    jp decl_main_stmt_0
 _end:
     jp _end
 _renderText:
-    ld a, AT
+    ld a,AT
     rst 0x10
     ld a,l
     rst 0x10
@@ -1516,24 +1513,24 @@ main() {
             """
 org 0x8000
 main:
-    jp _wait_decl_0_main_0_start
-_wait_decl_0_main_0_end:
+    jp _wait_decl_main_stmt_0_start
+_wait_decl_main_stmt_0_end:
 _end:
     jp _end
-_wait_decl_0_main_0_start:
-_wait_decl_0_main_0_none_pressed:
+_wait_decl_main_stmt_0_start:
+_wait_decl_main_stmt_0_none_pressed:
     ld a,0xbf
     in a,(0xfe)
     bit 3,a
-    jp z,_wait_decl_0_main_0_none_pressed
-_wait_decl_0_main_0_any_pressed:
+    jp z,_wait_decl_main_stmt_0_none_pressed
+_wait_decl_main_stmt_0_any_pressed:
     ld a,0xbf
     in a,(0xfe)
     bit 3,a
-    jp z,_wait_decl_0_main_0_onJ
-    jp _wait_decl_0_main_0_any_pressed
-_wait_decl_0_main_0_onJ:
-    jp _wait_decl_0_main_0_end
+    jp z,_wait_decl_main_stmt_0_onJ
+    jp _wait_decl_main_stmt_0_any_pressed
+_wait_decl_main_stmt_0_onJ:
+    jp _wait_decl_main_stmt_0_end
             """
         , testEmit
             """
@@ -1547,25 +1544,25 @@ main() {
 ROM_CLS EQU 0x0daf
 org 0x8000
 main:
-    jp _wait_decl_0_main_0_start
-_wait_decl_0_main_0_end:
+    jp _wait_decl_main_stmt_0_start
+_wait_decl_main_stmt_0_end:
 _end:
     jp _end
-_wait_decl_0_main_0_start:
-_wait_decl_0_main_0_none_pressed:
+_wait_decl_main_stmt_0_start:
+_wait_decl_main_stmt_0_none_pressed:
     ld a,0xbf
     in a,(0xfe)
     bit 3,a
-    jp z,_wait_decl_0_main_0_none_pressed
-_wait_decl_0_main_0_any_pressed:
+    jp z,_wait_decl_main_stmt_0_none_pressed
+_wait_decl_main_stmt_0_any_pressed:
     ld a,0xbf
     in a,(0xfe)
     bit 3,a
-    jp z,_wait_decl_0_main_0_onJ
-    jp _wait_decl_0_main_0_any_pressed
-_wait_decl_0_main_0_onJ:
+    jp z,_wait_decl_main_stmt_0_onJ
+    jp _wait_decl_main_stmt_0_any_pressed
+_wait_decl_main_stmt_0_onJ:
     call ROM_CLS
-    jp _wait_decl_0_main_0_end
+    jp _wait_decl_main_stmt_0_end
             """
         , testEmit
             """
@@ -1579,30 +1576,30 @@ main() {
             """
 org 0x8000
 main:
-    jp _wait_decl_0_main_0_start
-_wait_decl_0_main_0_end:
+    jp _wait_decl_main_stmt_0_start
+_wait_decl_main_stmt_0_end:
 _end:
     jp _end
-_wait_decl_0_main_0_start:
-_wait_decl_0_main_0_none_pressed:
+_wait_decl_main_stmt_0_start:
+_wait_decl_main_stmt_0_none_pressed:
     ld a,0xbf
     in a,(0xfe)
     bit 3,a
-    jp z,_wait_decl_0_main_0_none_pressed
+    jp z,_wait_decl_main_stmt_0_none_pressed
     bit 2,a
-    jp z,_wait_decl_0_main_0_none_pressed
-_wait_decl_0_main_0_any_pressed:
+    jp z,_wait_decl_main_stmt_0_none_pressed
+_wait_decl_main_stmt_0_any_pressed:
     ld a,0xbf
     in a,(0xfe)
     bit 3,a
-    jp z,_wait_decl_0_main_0_onJ
+    jp z,_wait_decl_main_stmt_0_onJ
     bit 2,a
-    jp z,_wait_decl_0_main_0_onK
-    jp _wait_decl_0_main_0_any_pressed
-_wait_decl_0_main_0_onJ:
-    jp _wait_decl_0_main_0_end
-_wait_decl_0_main_0_onK:
-    jp _wait_decl_0_main_0_end
+    jp z,_wait_decl_main_stmt_0_onK
+    jp _wait_decl_main_stmt_0_any_pressed
+_wait_decl_main_stmt_0_onJ:
+    jp _wait_decl_main_stmt_0_end
+_wait_decl_main_stmt_0_onK:
+    jp _wait_decl_main_stmt_0_end
             """
         ]
 
@@ -1641,7 +1638,7 @@ generic0ArgCallExpr =
 main(){
     return fn()
 }
-fn(){
+fn(): U8 {
     return 1
 }
             """
@@ -1667,7 +1664,7 @@ generic1ArgCallExpr =
 main(){
     return fn(1)
 }
-fn(a){
+fn(a: U8): U8 {
     return a
 }
             """
@@ -1698,9 +1695,9 @@ generic2ArgCallExpr =
         [ testEmit
             """
 main(){
-    return fn(1,2)
+    const x = fn(1,2)
 }
-fn(a,b){
+fn(a: U8, b: U8): U8 {
     return a + b
 }
             """
@@ -1738,11 +1735,11 @@ generic5ArgCallExpr =
     Test.describe "generic 5-arg call expr"
         [ testEmit
             """
-main(){
-    return fn(1,2,3,4,5)
-}
-fn(a,b,c,d,e){
+fn(a: U8, b: U8, c: U8, d: U8, e: U8): U8 {
     return a + b + c + d + e
+}
+main(){
+    const x = fn(1,2,3,4,5)
 }
             """
             """
@@ -1841,7 +1838,7 @@ main:
 _end:
     jp _end
 _renderText:
-    ld a, AT
+    ld a,AT
     rst 0x10
     ld a,l
     rst 0x10
@@ -1878,7 +1875,7 @@ main:
 _end:
     jp _end
 fn:
-    ld a,_string_0_0
+    ld de,_string_0_0
     ret
 _string_0_0 db 'Hello', 0
             """
@@ -1891,22 +1888,7 @@ unaryOps =
         [ testEmit
             """
 main() {
-    return -1
-}
-            """
-            """
-org 0x8000
-main:
-    ld a,1
-    neg
-    jp _end
-_end:
-    jp _end
-            """
-        , testEmit
-            """
-main() {
-    return !true
+    const x = !true
 }
             """
             """
@@ -1974,12 +1956,12 @@ main:
     ld a,20
     pop bc
     cp b
-    jp nc,_gt_decl_0_main_0_binop_onGT
+    jp nc,_gt_decl_main_stmt_0_binop_onGT
     ld a,0
-    jp _gt_decl_0_main_0_binop_end
-_gt_decl_0_main_0_binop_onGT:
+    jp _gt_decl_main_stmt_0_binop_end
+_gt_decl_main_stmt_0_binop_onGT:
     ld a,255
-_gt_decl_0_main_0_binop_end:
+_gt_decl_main_stmt_0_binop_end:
     jp _end
 _end:
     jp _end
@@ -1998,12 +1980,12 @@ main:
     ld a,10
     pop bc
     cp b
-    jp nc,_lt_decl_0_main_0_binop_onLT
+    jp nc,_lt_decl_main_stmt_0_binop_onLT
     ld a,0
-    jp _lt_decl_0_main_0_binop_end
-_lt_decl_0_main_0_binop_onLT:
+    jp _lt_decl_main_stmt_0_binop_end
+_lt_decl_main_stmt_0_binop_onLT:
     ld a,255
-_lt_decl_0_main_0_binop_end:
+_lt_decl_main_stmt_0_binop_end:
     jp _end
 _end:
     jp _end
@@ -2166,7 +2148,7 @@ ifExprs =
         [ testEmit
             """
 main() {
-    return (if (true) 5 else 6)
+    const x = if (true) 5 else 6
 }
             """
             -- TODO we can optimize this away later, for now this is translated verbatim
@@ -2175,13 +2157,13 @@ org 0x8000
 main:
     ld a,255
     cp 255
-    jp nz,_ifexpr_decl_0_main_0_else
+    jp nz,_ifexpr_decl_main_stmt_0_else
     ld a,5
-    jp _ifexpr_decl_0_main_0_end
-_ifexpr_decl_0_main_0_else:
+    jp _ifexpr_decl_main_stmt_0_end
+_ifexpr_decl_main_stmt_0_else:
     ld a,6
-_ifexpr_decl_0_main_0_end:
-    jp _end
+_ifexpr_decl_main_stmt_0_end:
+    push af
 _end:
     jp _end
             """
@@ -2201,12 +2183,12 @@ _end:
 fn:
     ld a,255
     cp 255
-    jp nz,_ifexpr_decl_1_fn_0_else
+    jp nz,_ifexpr_decl_main_fn_0_else
     ld a,5
-    jp _ifexpr_decl_1_fn_0_end
-_ifexpr_decl_1_fn_0_else:
+    jp _ifexpr_decl_main_fn_0_end
+_ifexpr_decl_main_fn_0_else:
     ld a,6
-_ifexpr_decl_1_fn_0_end:
+_ifexpr_decl_main_fn_0_end:
     ret
             """
         , testEmit
@@ -2225,19 +2207,19 @@ _end:
 fn:
     ld a,255
     cp 255
-    jp nz,_ifexpr_decl_1_fn_0_else
+    jp nz,_ifexpr_decl_main_fn_0_else
     ld a,0
-    jp _ifexpr_decl_1_fn_0_end
-_ifexpr_decl_1_fn_0_else:
+    jp _ifexpr_decl_main_fn_0_end
+_ifexpr_decl_main_fn_0_else:
     ld a,0
     cp 255
-    jp nz,_ifexpr_decl_1_fn_0_if_else_else
+    jp nz,_ifexpr_decl_main_fn_0_if_else_else
     ld a,1
-    jp _ifexpr_decl_1_fn_0_if_else_end
-_ifexpr_decl_1_fn_0_if_else_else:
+    jp _ifexpr_decl_main_fn_0_if_else_end
+_ifexpr_decl_main_fn_0_if_else_else:
     ld a,2
-_ifexpr_decl_1_fn_0_if_else_end:
-_ifexpr_decl_1_fn_0_end:
+_ifexpr_decl_main_fn_0_if_else_end:
+_ifexpr_decl_main_fn_0_end:
     ret
             """
         ]

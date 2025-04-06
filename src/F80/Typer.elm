@@ -41,6 +41,7 @@ prelude : List ( String, Type )
 prelude =
     [ ( "Render.text", Function [ U8, U8, String ] Unit )
     , ( "ROM.clearScreen", Function [] Unit )
+    , ( "String.fromU8", Function [ U8 ] String )
     ]
 
 
@@ -398,11 +399,11 @@ findVar var path ctx_ =
             Just type_
 
         Nothing ->
-            case List.Extra.unconsLast path of
-                Nothing ->
+            case path of
+                [] ->
                     Nothing
 
-                Just ( _, path_ ) ->
+                _ :: path_ ->
                     findVar var path_ ctx_
 
 

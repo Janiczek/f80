@@ -7,9 +7,9 @@ Local variables are passed on the stack.
 
 Function return values and expressions are emitted to the register A, unless
 they're a pointer (like to a string) in which case they don't fit into a single
-8bit register and they'll be in DE.
+8bit register and they'll be in HL.
 
-TODO: make everything be in D or DE? Or make things be on the stack?
+TODO: make everything be in H or HL? Or make things be on the stack?
 
 -}
 
@@ -168,19 +168,41 @@ emitStmt fnInfo ix stmt state =
 
 
 emitDefineConst : DefineConstData -> State -> ( Output, State )
-emitDefineConst defVar state =
+emitDefineConst defConst state =
+    let
+        isString =
+            varType defConst.name state == Just F80.Type.String
+
+        reg =
+            if isString then
+                "hl"
+
+            else
+                "af"
+    in
     State.initWith state
-        |> State.emit (emitExpr defVar.value)
-        |> State.push "af" { countAsExtra = False }
-        |> State.lift_SS_OSOS (State.addLocalVar { type_ = State.Const } defVar.name)
+        |> State.emit (emitExpr defConst.value)
+        |> State.push reg { countAsExtra = False }
+        |> State.lift_SS_OSOS (State.addLocalVar { type_ = State.Const } defConst.name)
 
 
 emitDefineLet : DefineLetData -> State -> ( Output, State )
-emitDefineLet defVar state =
+emitDefineLet defLet state =
+    let
+        isString =
+            varType defLet.name state == Just F80.Type.String
+
+        reg =
+            if isString then
+                "hl"
+
+            else
+                "af"
+    in
     State.initWith state
-        |> State.emit (emitExpr defVar.value)
-        |> State.push "af" { countAsExtra = False }
-        |> State.lift_SS_OSOS (State.addLocalVar { type_ = State.Let } defVar.name)
+        |> State.emit (emitExpr defLet.value)
+        |> State.push reg { countAsExtra = False }
+        |> State.lift_SS_OSOS (State.addLocalVar { type_ = State.Let } defLet.name)
 
 
 emitReturn : { isMain : Bool } -> Maybe Expr -> State -> ( Output, State )
@@ -316,7 +338,7 @@ emitAssign assignData state =
                                 |> State.i ("ld ix," ++ String.fromInt (State.currentBaseOffset state))
                                 |> State.i "add ix,sp"
                                 |> State.i ("ld a,(ix-" ++ String.fromInt stackOffset ++ ")")
-                                |> State.i "add b"
+                                |> State.i "add a,b"
                                 -- we don't need to prepare ix again, it's still good from above!
                                 |> State.i ("ld (ix-" ++ String.fromInt stackOffset ++ "),a")
 
@@ -416,24 +438,24 @@ renderTextXYHL x y state =
     case ( x, y ) of
         ( Int xx, Int yy ) ->
             -- Special optimized case
-            -- ld hl,0xXXYY
+            -- ld de,0xXXYY
             State.initWith state
-                |> State.i ("ld hl," ++ String.fromInt (xx * 256 + yy))
+                |> State.i ("ld de," ++ String.fromInt (xx * 256 + yy))
 
         ( Int xx, Var yy ) ->
             State.initWith state
-                |> emitInt "h" xx
-                |> emitVar "l" yy
+                |> emitInt "d" xx
+                |> emitVar "e" yy
 
         ( Var xx, Int yy ) ->
             State.initWith state
-                |> emitVar "h" xx
-                |> emitInt "l" yy
+                |> emitVar "d" xx
+                |> emitInt "e" yy
 
         ( Var xx, Var yy ) ->
             State.initWith state
-                |> emitVar "h" xx
-                |> emitVar "l" yy
+                |> emitVar "d" xx
+                |> emitVar "e" yy
 
         ( _, _ ) ->
             let
@@ -450,6 +472,7 @@ emitCallStringFromU8 callData state =
             State.initWith state
                 |> State.emit (emitExpr n)
                 |> State.i "call _stringFromU8"
+                -- ^ Will return the string in HL
                 |> State.addOutput Output.stringFromU8
 
         _ ->
@@ -487,7 +510,7 @@ varType var state =
     F80.Typer.findVar var state.path state.types
 
 
-{-| Loads the value into the register A, unless it's a String var, which goes to DE.
+{-| Loads the value into the register A, unless it's a String var, which goes to HL.
 -}
 emitExpr : Expr -> State -> ( Output, State )
 emitExpr expr state =
@@ -502,7 +525,7 @@ emitExpr expr state =
                     State.initWith state
                         |> (if Set.member var state.globalVars then
                                 if varType var state == Just F80.Type.String then
-                                    State.i ("ld de," ++ var)
+                                    State.i ("ld hl," ++ var)
 
                                 else
                                     State.i ("ld a," ++ var)
@@ -520,7 +543,6 @@ emitExpr expr state =
                                                 |> (if varType var state == Just F80.Type.String then
                                                         \os2 ->
                                                             os2
-                                                                -- TODO recheck this
                                                                 |> State.i ("ld h,(ix-" ++ String.fromInt stackOffset ++ ")")
                                                                 |> State.i ("ld l,(ix-" ++ String.fromInt (stackOffset + 1) ++ ")")
 
@@ -548,7 +570,7 @@ emitExpr expr state =
                                         |> State.push "af" { countAsExtra = True }
                                         |> {- a = L -} State.withContext InBinOpLeft (emitExpr data.left)
                                         |> {- b = R -} State.pop "bc" { countAsExtra = True }
-                                        |> {- a = L + R -} State.i "add b"
+                                        |> {- a = L + R -} State.i "add a,b"
 
                                 BOp_Sub ->
                                     State.initWith stateBinop

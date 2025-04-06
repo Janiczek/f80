@@ -29,7 +29,7 @@ i instruction =
 
 mainPrologue : List String
 mainPrologue =
-    [ "org 0x8000"
+    [ i "org 0x8000"
     ]
 
 

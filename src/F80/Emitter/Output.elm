@@ -97,7 +97,7 @@ equ name value =
 
 {-| Render.text(x: U8, y: U8, s: String)
 
-Expects x,y in HL, null-terminated string address in DE.
+Expects x,y in DE, null-terminated string address in HL.
 Doesn't return anything.
 
 -}
@@ -111,16 +111,16 @@ renderText =
               , [ l "_renderText"
                 , i "ld a,AT"
                 , i "rst 0x10"
-                , i "ld a,l"
+                , i "ld a,e"
                 , i "rst 0x10"
-                , i "ld a,h"
+                , i "ld a,d"
                 , i "rst 0x10"
                 , l "_renderTextLoop"
-                , i "ld a,(de)"
+                , i "ld a,(hl)"
                 , i "cp 0"
                 , i "ret z"
                 , i "rst 0x10"
-                , i "inc de"
+                , i "inc hl"
                 , i "jr _renderTextLoop"
                 ]
               )
@@ -143,7 +143,7 @@ stringFromU8 =
         Dict.fromList
             [ ( "_stringFromU8"
               , [ l "_stringFromU8"
-                , i "ld hl,_stringFromU8Buffer"
+                , i "ld hl,_stringFromU8Buffer+3"
                 , i "ld (hl),0"
                 , i "dec hl"
                 , i "ld d,0"

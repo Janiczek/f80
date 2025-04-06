@@ -108,7 +108,8 @@ testEmit source expected =
                         -}
                         |> expectEqualMultiline
                             (expected
-                                |> String.trim
+                                |> -- don't trim the beginning because of "    org 0x8000"
+                                   String.trimRight
                                 |> removeCommentsAndEmptyLines
                             )
 
@@ -142,7 +143,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,1
     push af     ; -> stack = x         (offset of x = 1)
@@ -184,11 +185,11 @@ fn:             ; -> stack = A(=Y),B(=X),RET, our base offset is 6 (for now)
     add ix,sp
     ld a,(ix-1) ; a has offset 1
     pop bc      ; -> stack = A,B,RET,c,d,D,C
-    add b
+    add a,b
     pop bc      ; -> stack = A,B,RET,c,d,D
-    add b
+    add a,b
     pop bc      ; -> stack = A,B,RET,c,d
-    add b
+    add a,b
     ld ix,4     ; cleanup 2 locals
     add ix,sp
     ld sp,ix    ; -> stack = A,B,RET
@@ -208,7 +209,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,1
     push af
@@ -250,7 +251,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,4
     push af
@@ -279,9 +280,9 @@ main:
     add ix,sp
     ld sp,ix
     pop bc
-    add b
+    add a,b
     pop bc
-    add b
+    add a,b
     push af
 _end:
     jp _end
@@ -300,9 +301,9 @@ bar:
     add ix,sp
     ld a,(ix-1)
     pop bc
-    add b
+    add a,b
     pop bc
-    add b
+    add a,b
     ld ix,2
     add ix,sp
     ld sp,ix
@@ -326,11 +327,11 @@ baz:
     add ix,sp
     ld a,(ix-1)
     pop bc
-    add b
+    add a,b
     pop bc
-    add b
+    add a,b
     pop bc
-    add b
+    add a,b
     ld ix,2
     add ix,sp
     ld sp,ix
@@ -346,7 +347,7 @@ foo:
     add ix,sp
     ld a,(ix-1)
     pop bc
-    add b
+    add a,b
     ld ix,2
     add ix,sp
     ld sp,ix
@@ -370,7 +371,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,1
     push af
@@ -385,7 +386,7 @@ main:
     add ix,sp
     ld sp,ix
     pop bc
-    add b
+    add a,b
     push af
 _end:
     jp _end
@@ -404,9 +405,9 @@ bar:
     add ix,sp
     ld a,(ix-3)
     pop bc
-    add b
+    add a,b
     pop bc
-    add b
+    add a,b
     ld ix,2
     add ix,sp
     ld sp,ix
@@ -435,9 +436,9 @@ foo:
     add ix,sp
     ld a,(ix-1)
     pop bc
-    add b
+    add a,b
     pop bc
-    add b
+    add a,b
     ld ix,2
     add ix,sp
     ld sp,ix
@@ -471,7 +472,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,1
     push af ; save var on the stack
@@ -494,7 +495,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,1
 
@@ -527,7 +528,7 @@ main:
     ld a,(ix-1)
 
     pop bc
-    add b
+    add a,b
     jp _end
 _end:
     jp _end
@@ -545,7 +546,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     call foo
 _end:
@@ -558,7 +559,7 @@ foo:
     ld ix,4
     add ix,sp
     ld a,(ix-3)
-    add b
+    add a,b
     ld (ix-3),a
     ld ix,4
     add ix,sp
@@ -577,7 +578,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,3
     push af
@@ -608,7 +609,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,1
     push af
@@ -623,7 +624,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,1
     push af
@@ -656,7 +657,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,1
     push af     ; save x at offset 1
@@ -670,7 +671,7 @@ main:
     add ix,sp
     ld a,(ix-1) ; load x
     pop bc
-    add b
+    add a,b
     ; no cleanup of locals in main
     push af
 _end:
@@ -702,7 +703,7 @@ foo:
     ld ix,8
     add ix,sp
     ld a,(ix-5) ; load y
-    add b
+    add a,b
     ld (ix-5),a  ; y += bar()
     ld ix,8
     add ix,sp
@@ -711,7 +712,7 @@ foo:
     ld ix,8
     add ix,sp
     ld a,(ix-5) ; load y
-    add b
+    add a,b
     ld (ix-5),a  ; y += x
     ; cleanup block (1 local)
     ld ix,2
@@ -728,7 +729,7 @@ _ifstmt_decl_foo_stmt_2_end:
     add ix,sp
     ld a,(ix-3) ; load x (in foo())
     pop bc
-    add b
+    add a,b
     ; cleanup foo() (2 locals)
     ld ix,4
     add ix,sp
@@ -748,7 +749,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,1
     push af
@@ -763,7 +764,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,1
     push af
@@ -800,7 +801,7 @@ main(){
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     call fn
 _end:
@@ -825,7 +826,7 @@ main(){
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,1
     push af      ; -> stack = 1  (not tracking offsets for args here)
@@ -857,7 +858,7 @@ main(){
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,1
     push af      ; -> stack = 1   (not tracking offsets for args here)
@@ -878,7 +879,7 @@ fn:              ; -> stack = A(=1),B(=2),RET, our base offset is 6, offset of a
     add ix,sp
     ld a,(ix-1)  ; a has offset 1
     pop bc
-    add b
+    add a,b
     ret
             """
         ]
@@ -897,7 +898,7 @@ main(){
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,1
     push af      ; -> stack = 1         (not tracking offsets for args here)
@@ -936,13 +937,13 @@ fn:              ; -> stack = A(=1),B(=2),C(=3),D(=4),E(=5),RET, our base offset
     add ix,sp
     ld a,(ix-1)  ; a has offset 1
     pop bc
-    add b
+    add a,b
     pop bc
-    add b
+    add a,b
     pop bc
-    add b
+    add a,b
     pop bc
-    add b
+    add a,b
     ret
             """
         ]
@@ -957,7 +958,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
 _end:
     jp _end
@@ -970,7 +971,7 @@ main() {
             """
             -- TODO optimize away jp _end before _end:
             """
-org 0x8000
+    org 0x8000
 main:
     jp _end
 _end:
@@ -983,7 +984,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,1
     jp _end
@@ -998,7 +999,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
 _end:
     jp _end
@@ -1014,7 +1015,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
 _end:
     jp _end
@@ -1031,7 +1032,7 @@ globals =
         [ testEmit
             "const x = 1"
             """
-org 0x8000
+    org 0x8000
 _end:
     jp _end
 x db 1
@@ -1040,7 +1041,7 @@ x db 1
             "const str = \"Hello World!\""
             """
 str_length EQU 12
-org 0x8000
+    org 0x8000
 _end:
     jp _end
 str db 'Hello World!', 0
@@ -1048,7 +1049,7 @@ str db 'Hello World!', 0
         , testEmit
             "const bytes = [1,2,3]"
             """
-org 0x8000
+    org 0x8000
 _end:
     jp _end
 bytes db 1, 2, 3
@@ -1056,7 +1057,7 @@ bytes db 1, 2, 3
         , testEmit
             "const bool = true"
             """
-org 0x8000
+    org 0x8000
 _end:
     jp _end
 bool db 255
@@ -1064,7 +1065,7 @@ bool db 255
         , testEmit
             "const bool = false"
             """
-org 0x8000
+    org 0x8000
 _end:
     jp _end
 bool db 0
@@ -1076,7 +1077,7 @@ const other = global
             """
             """
 other EQU global
-org 0x8000
+    org 0x8000
 _end:
     jp _end
 global db 1
@@ -1084,7 +1085,7 @@ global db 1
         , testEmit
             "const binop = 1 + 2"
             """
-org 0x8000
+    org 0x8000
 _end:
     jp _end
 binop db 1 + 2
@@ -1092,7 +1093,7 @@ binop db 1 + 2
         , testEmit
             "const binop = 1 - 2"
             """
-org 0x8000
+    org 0x8000
 _end:
     jp _end
 binop db 1 - 2
@@ -1100,7 +1101,7 @@ binop db 1 - 2
         , testEmit
             "const binop = 1 < 2"
             """
-org 0x8000
+    org 0x8000
 _end:
     jp _end
 binop db 1 < 2
@@ -1108,7 +1109,7 @@ binop db 1 < 2
         , testEmit
             "const binop = 1 > 2"
             """
-org 0x8000
+    org 0x8000
 _end:
     jp _end
 binop db 1 > 2
@@ -1116,7 +1117,7 @@ binop db 1 > 2
         , testEmit
             "const unop = !true"
             """
-org 0x8000
+    org 0x8000
 _end:
     jp _end
 unop db NOT 255
@@ -1124,7 +1125,7 @@ unop db NOT 255
         , testEmit
             """const len = String.length("Hello World!")"""
             """
-org 0x8000
+    org 0x8000
 _end:
     jp _end
 len db 12
@@ -1136,7 +1137,7 @@ const len = String.length(hello)
             """
             """
 hello_length EQU 5
-org 0x8000
+    org 0x8000
 _end:
     jp _end
 hello db 'Hello', 0
@@ -1156,7 +1157,7 @@ main() {
             """
             """
 ROM_CLS EQU 0x0daf
-org 0x8000
+    org 0x8000
 main:
     call ROM_CLS
 _end:
@@ -1178,26 +1179,26 @@ main() {
             """
 AT EQU 0x16
 hello_length EQU 5
-org 0x8000
+    org 0x8000
 main:
-    ld hl,773
-    ld de,hello
+    ld de,773
+    ld hl,hello
     call _renderText
 _end:
     jp _end
 _renderText:
     ld a,AT
     rst 0x10
-    ld a,l
+    ld a,e
     rst 0x10
-    ld a,h
+    ld a,d
     rst 0x10
 _renderTextLoop:
-    ld a,(de)
+    ld a,(hl)
     cp 0
     ret z
     rst 0x10
-    inc de
+    inc hl
     jr _renderTextLoop
 hello db 'Hello', 0
             """
@@ -1210,26 +1211,26 @@ main() {
             """
 AT EQU 0x16
 _string_0_0_length EQU 5
-org 0x8000
+    org 0x8000
 main:
-    ld hl,773
-    ld de,_string_0_0
+    ld de,773
+    ld hl,_string_0_0
     call _renderText
 _end:
     jp _end
 _renderText:
     ld a,AT
     rst 0x10
-    ld a,l
+    ld a,e
     rst 0x10
-    ld a,h
+    ld a,d
     rst 0x10
 _renderTextLoop:
-    ld a,(de)
+    ld a,(hl)
     cp 0
     ret z
     rst 0x10
-    inc de
+    inc hl
     jr _renderTextLoop
 _string_0_0 db 'Hello', 0
             """
@@ -1244,29 +1245,29 @@ main() {
 AT EQU 0x16
 _string_0_0_length EQU 5
 _string_0_1_length EQU 5
-org 0x8000
+    org 0x8000
 main:
-    ld hl,1
-    ld de,_string_0_0
+    ld de,1
+    ld hl,_string_0_0
     call _renderText
-    ld hl,515
-    ld de,_string_0_1
+    ld de,515
+    ld hl,_string_0_1
     call _renderText
 _end:
     jp _end
 _renderText:
     ld a,AT
     rst 0x10
-    ld a,l
+    ld a,e
     rst 0x10
-    ld a,h
+    ld a,d
     rst 0x10
 _renderTextLoop:
-    ld a,(de)
+    ld a,(hl)
     cp 0
     ret z
     rst 0x10
-    inc de
+    inc hl
     jr _renderTextLoop
 _string_0_0 db 'Hello', 0
 _string_0_1 db 'World', 0
@@ -1288,7 +1289,7 @@ main() {
             -- TODO we can optimize this away later, for now this is translated verbatim
             """
 ROM_CLS EQU 0x0daf
-org 0x8000
+    org 0x8000
 main:
     ld a,255
     cp 255
@@ -1311,7 +1312,7 @@ main() {
             -- TODO we can optimize this away later, for now this is translated verbatim
             """
 ROM_CLS EQU 0x0daf
-org 0x8000
+    org 0x8000
 main:
     ld a,255
     cp 255
@@ -1335,7 +1336,7 @@ main() {
             -- TODO we can optimize this away later, for now this is translated verbatim
             """
 ROM_CLS EQU 0x0daf
-org 0x8000
+    org 0x8000
 main:
     ld a,2
     push af
@@ -1366,7 +1367,7 @@ main() {
             -- TODO we can optimize this away later, for now this is translated verbatim
             """
 ROM_CLS EQU 0x0daf
-org 0x8000
+    org 0x8000
 main:
     ld a,1
     push af
@@ -1399,7 +1400,7 @@ main() {
             """
             """
 ROM_CLS EQU 0x0daf
-org 0x8000
+    org 0x8000
 main:
     call fn
     cp 255
@@ -1430,11 +1431,11 @@ main() {
             """
 AT EQU 0x16
 hello_length EQU 5
-org 0x8000
+    org 0x8000
 main:
 decl_main_stmt_0:
-    ld hl,0
-    ld de,hello
+    ld de,0
+    ld hl,hello
     call _renderText
     jp decl_main_stmt_0
 _end:
@@ -1442,16 +1443,16 @@ _end:
 _renderText:
     ld a,AT
     rst 0x10
-    ld a,l
+    ld a,e
     rst 0x10
-    ld a,h
+    ld a,d
     rst 0x10
 _renderTextLoop:
-    ld a,(de)
+    ld a,(hl)
     cp 0
     ret z
     rst 0x10
-    inc de
+    inc hl
     jr _renderTextLoop
 hello db 'Hello', 0
             """
@@ -1469,12 +1470,12 @@ main() {
             """
 AT EQU 0x16
 hello_length EQU 5
-org 0x8000
+    org 0x8000
 main:
 decl_main_stmt_0:
 decl_main_stmt_0_loop_stmt_0:
-    ld hl,0
-    ld de,hello
+    ld de,0
+    ld hl,hello
     call _renderText
     jp decl_main_stmt_0_loop_stmt_0
     jp decl_main_stmt_0
@@ -1483,16 +1484,16 @@ _end:
 _renderText:
     ld a,AT
     rst 0x10
-    ld a,l
+    ld a,e
     rst 0x10
-    ld a,h
+    ld a,d
     rst 0x10
 _renderTextLoop:
-    ld a,(de)
+    ld a,(hl)
     cp 0
     ret z
     rst 0x10
-    inc de
+    inc hl
     jr _renderTextLoop
 hello db 'Hello', 0
             """
@@ -1511,7 +1512,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     jp _wait_decl_main_stmt_0_start
 _wait_decl_main_stmt_0_end:
@@ -1542,7 +1543,7 @@ main() {
             """
             """
 ROM_CLS EQU 0x0daf
-org 0x8000
+    org 0x8000
 main:
     jp _wait_decl_main_stmt_0_start
 _wait_decl_main_stmt_0_end:
@@ -1574,7 +1575,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     jp _wait_decl_main_stmt_0_start
 _wait_decl_main_stmt_0_end:
@@ -1623,6 +1624,7 @@ callExprs =
     Test.describe "call Exprs"
         [ renderTextExpr
         , romClsExpr
+        , stringFromU8Expr
         , generic0ArgCallExpr
         , generic1ArgCallExpr
         , generic2ArgCallExpr
@@ -1643,7 +1645,7 @@ main(){
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     call fn
     push af
@@ -1669,7 +1671,7 @@ main(){
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,1
     push af      ; -> stack = 1  (not tracking offsets for args here)
@@ -1702,7 +1704,7 @@ main(){
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,1
     push af      ; -> stack = 1   (not tracking offsets for args here)
@@ -1724,7 +1726,7 @@ fn:              ; -> stack = A(=1),B(=2),RET, our base offset is 6, offset of a
     add ix,sp
     ld a,(ix-1)  ; a has offset 1
     pop bc
-    add b
+    add a,b
     ret
             """
         ]
@@ -1743,7 +1745,7 @@ main(){
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,1
     push af      ; -> stack = 1         (not tracking offsets for args here)
@@ -1783,13 +1785,13 @@ fn:              ; -> stack = A(=1),B(=2),C(=3),D(=4),E(=5),RET, our base offset
     add ix,sp
     ld a,(ix-1)  ; a has offset 1
     pop bc
-    add b
+    add a,b
     pop bc
-    add b
+    add a,b
     pop bc
-    add b
+    add a,b
     pop bc
-    add b
+    add a,b
     ret
             """
         ]
@@ -1801,17 +1803,132 @@ romClsExpr =
         [ testEmit
             """
 main() {
-    return ROM.clearScreen()
+    const x = ROM.clearScreen()
 }
             """
             """
 ROM_CLS EQU 0x0daf
-org 0x8000
+    org 0x8000
 main:
     call ROM_CLS
-    jp _end
+    push af
 _end:
     jp _end
+            """
+        ]
+
+
+stringFromU8Expr : Test
+stringFromU8Expr =
+    Test.describe "String.fromU8() expr"
+        [ Test.todo "multiple String.fromU8() calls at once ... are we allocating on the stack or are we rewriting each others' buffers?"
+        , testEmit
+            """
+main() {
+    const str = String.fromU8(0)
+}
+            """
+            """
+    org 0x8000
+main:
+    ld a,0
+    call _stringFromU8
+    push hl
+_end:
+    jp _end
+_stringFromU8:
+    ld hl,_stringFromU8Buffer+3
+    ld (hl),0
+    dec hl
+    ld d,0
+    ld b,10
+_stringFromU8Loop:
+    call _u8DivMod
+    add a,0x30
+    ld (hl),a
+    dec hl
+    inc d
+    ld a,c
+    or a
+    jr nz,_stringFromU8Loop
+    inc hl
+    ret
+_u8DivMod:
+    ld c,0
+_u8DivModLoop:
+    sub b
+    jr c,_u8DivModEnd
+    inc c
+    jr _u8DivModLoop
+_u8DivModEnd:
+    add a,b
+    ret
+_stringFromU8Buffer db 4
+            """
+        , testEmit
+            """
+main() {
+    const str = String.fromU8(0)
+    Render.text(1, 1, str)
+}
+            """
+            """
+AT EQU 0x16
+    org 0x8000
+main:
+    ld a,0
+    call _stringFromU8
+    push hl
+    ld de,257
+    ld ix,2
+    add ix,sp
+    ld h,(ix-1)
+    ld l,(ix-2)
+    call _renderText
+_end:
+    jp _end
+_renderText:
+    ld a,AT
+    rst 0x10
+    ld a,e
+    rst 0x10
+    ld a,d
+    rst 0x10
+_renderTextLoop:
+    ld a,(hl)
+    cp 0
+    ret z
+    rst 0x10
+    inc hl
+    jr _renderTextLoop
+_stringFromU8:
+    ld hl,_stringFromU8Buffer+3
+    ld (hl),0
+    dec hl
+    ld d,0
+    ld b,10
+_stringFromU8Loop:
+    call _u8DivMod
+    add a,0x30
+    ld (hl),a
+    dec hl
+    inc d
+    ld a,c
+    or a
+    jr nz,_stringFromU8Loop
+    inc hl
+    ret
+_u8DivMod:
+    ld c,0
+_u8DivModLoop:
+    sub b
+    jr c,_u8DivModEnd
+    inc c
+    jr _u8DivModLoop
+_u8DivModEnd:
+    add a,b
+    ret
+_stringFromU8Buffer db 4
             """
         ]
 
@@ -1823,33 +1940,33 @@ renderTextExpr =
             """
 const hello = "Hello"
 main() {
-    return Render.text(3, 5, hello)
+    const x = Render.text(3, 5, hello)
 }
             """
             """
 AT EQU 0x16
 hello_length EQU 5
-org 0x8000
+    org 0x8000
 main:
-    ld hl,773
-    ld de,hello
+    ld de,773
+    ld hl,hello
     call _renderText
-    jp _end
+    push af
 _end:
     jp _end
 _renderText:
     ld a,AT
     rst 0x10
-    ld a,l
+    ld a,e
     rst 0x10
-    ld a,h
+    ld a,d
     rst 0x10
 _renderTextLoop:
-    ld a,(de)
+    ld a,(hl)
     cp 0
     ret z
     rst 0x10
-    inc de
+    inc hl
     jr _renderTextLoop
 hello db 'Hello', 0
             """
@@ -1870,12 +1987,12 @@ main() {
             """
             """
 _string_0_0_length EQU 5
-org 0x8000
+    org 0x8000
 main:
 _end:
     jp _end
 fn:
-    ld de,_string_0_0
+    ld hl,_string_0_0
     ret
 _string_0_0 db 'Hello', 0
             """
@@ -1892,7 +2009,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,255
     neg
@@ -1913,13 +2030,13 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,20
     push af
     ld a,10
     pop bc
-    add b
+    add a,b
     jp _end
 _end:
     jp _end
@@ -1931,7 +2048,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,20
     push af
@@ -1949,7 +2066,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,10
     push af
@@ -1973,7 +2090,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,20
     push af
@@ -2005,7 +2122,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
 _end:
     jp _end
@@ -2022,7 +2139,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
 _end:
     jp _end
@@ -2045,7 +2162,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
 _end:
     jp _end
@@ -2062,7 +2179,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
 _end:
     jp _end
@@ -2084,7 +2201,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,1
     push af
@@ -2104,7 +2221,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,1
     push af
@@ -2126,7 +2243,7 @@ main() {
 }
             """
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,1
     push af
@@ -2153,7 +2270,7 @@ main() {
             """
             -- TODO we can optimize this away later, for now this is translated verbatim
             """
-org 0x8000
+    org 0x8000
 main:
     ld a,255
     cp 255
@@ -2176,7 +2293,7 @@ fn(): U8 {
             """
             -- TODO we can optimize this away later, for now this is translated verbatim
             """
-org 0x8000
+    org 0x8000
 main:
 _end:
     jp _end
@@ -2200,7 +2317,7 @@ fn(): U8 {
             """
             -- TODO we can optimize this away later, for now this is translated verbatim
             """
-org 0x8000
+    org 0x8000
 main:
 _end:
     jp _end

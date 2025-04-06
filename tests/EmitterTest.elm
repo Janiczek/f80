@@ -1896,7 +1896,7 @@ org 0x8000
 main:
     ld a,255
     neg
-    jp _end
+    push af
 _end:
     jp _end
             """

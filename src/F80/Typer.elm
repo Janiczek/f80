@@ -421,10 +421,62 @@ inferExpr ctx parentPath expr =
             Ok ( ctx, Bool )
 
         F80.AST.BinOp data ->
-            Debug.todo "infer binop"
+            inferExpr ctx parentPath data.left
+                |> Result.andThen
+                    (\( ctx1, leftType ) ->
+                        inferExpr ctx1 parentPath data.right
+                            |> Result.andThen
+                                (\( ctx2, rightType ) ->
+                                    case ( data.op, leftType, rightType ) of
+                                        ( F80.AST.BOp_Add, U8, U8 ) ->
+                                            Ok ( ctx2, U8 )
+
+                                        ( F80.AST.BOp_Add, U8, _ ) ->
+                                            Err { at = InBinOpRight :: parentPath, type_ = TypeMismatch { expected = U8, actual = rightType } }
+
+                                        ( F80.AST.BOp_Add, _, _ ) ->
+                                            Err { at = InBinOpLeft :: parentPath, type_ = TypeMismatch { expected = U8, actual = leftType } }
+
+                                        ( F80.AST.BOp_Sub, U8, U8 ) ->
+                                            Ok ( ctx2, U8 )
+
+                                        ( F80.AST.BOp_Sub, U8, _ ) ->
+                                            Err { at = InBinOpRight :: parentPath, type_ = TypeMismatch { expected = U8, actual = rightType } }
+
+                                        ( F80.AST.BOp_Sub, _, _ ) ->
+                                            Err { at = InBinOpLeft :: parentPath, type_ = TypeMismatch { expected = U8, actual = leftType } }
+
+                                        ( F80.AST.BOp_Gt, U8, U8 ) ->
+                                            Ok ( ctx2, Bool )
+
+                                        ( F80.AST.BOp_Gt, U8, _ ) ->
+                                            Err { at = InBinOpRight :: parentPath, type_ = TypeMismatch { expected = U8, actual = rightType } }
+
+                                        ( F80.AST.BOp_Gt, _, _ ) ->
+                                            Err { at = InBinOpLeft :: parentPath, type_ = TypeMismatch { expected = U8, actual = leftType } }
+
+                                        ( F80.AST.BOp_Lt, U8, U8 ) ->
+                                            Ok ( ctx2, Bool )
+
+                                        ( F80.AST.BOp_Lt, U8, _ ) ->
+                                            Err { at = InBinOpRight :: parentPath, type_ = TypeMismatch { expected = U8, actual = rightType } }
+
+                                        ( F80.AST.BOp_Lt, _, _ ) ->
+                                            Err { at = InBinOpLeft :: parentPath, type_ = TypeMismatch { expected = U8, actual = leftType } }
+                                )
+                    )
 
         F80.AST.UnaryOp data ->
-            Debug.todo "infer unaryop"
+            inferExpr ctx parentPath data.expr
+                |> Result.andThen
+                    (\( ctx1, type_ ) ->
+                        case ( data.op, type_ ) of
+                            ( F80.AST.UOp_Not, Bool ) ->
+                                Ok ( ctx1, Bool )
+
+                            ( F80.AST.UOp_Not, _ ) ->
+                                Err { at = InUnaryOp :: parentPath, type_ = TypeMismatch { expected = Bool, actual = type_ } }
+                    )
 
         F80.AST.CallExpr data ->
             Debug.todo "infer call - don't forget to add Render.text if used"

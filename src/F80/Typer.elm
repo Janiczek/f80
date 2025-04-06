@@ -21,6 +21,8 @@ type alias Error =
     }
 
 
+{-| TODO write explicit tests for all of these
+-}
 type ErrorType
     = TypeMismatch { expected : Type, actual : Type }
     | ReturnTypeMismatch { expected : Type, actual : Type }
@@ -31,6 +33,8 @@ type ErrorType
     | VarNotFound { name : String }
     | MainFnReturnTypeMismatch { actual : Type }
     | MainFnFunctionArityMismatch { actual : Int }
+    | IfBranchesTypeMismatch { then_ : Type, else_ : Type }
+    | IfCondTypeMismatch { actual : Type }
 
 
 prelude : List ( String, Type )
@@ -67,6 +71,7 @@ findTypes program =
 
                 F80.AST.FnDecl data ->
                     -- TODO check there's only one fn decl of this name
+                    -- TODO check the return type against the return stmt of the body
                     let
                         declPath : Path
                         declPath =
@@ -482,7 +487,30 @@ inferExpr ctx parentPath expr =
             Debug.todo "infer call - don't forget to add Render.text if used"
 
         F80.AST.IfExpr data ->
-            Debug.todo "infer if"
+            case inferExpr ctx parentPath data.cond of
+                Err err ->
+                    Err err
+
+                Ok ( ctx1, condType ) ->
+                    if condType == Bool then
+                        case inferExpr ctx1 parentPath data.then_ of
+                            Err err ->
+                                Err err
+
+                            Ok ( ctx2, thenType ) ->
+                                case inferExpr ctx2 parentPath data.else_ of
+                                    Err err ->
+                                        Err err
+
+                                    Ok ( ctx3, elseType ) ->
+                                        if thenType == elseType then
+                                            Ok ( ctx3, thenType )
+
+                                        else
+                                            Err { at = InIfElse :: parentPath, type_ = IfBranchesTypeMismatch { then_ = thenType, else_ = elseType } }
+
+                    else
+                        Err { at = InIfCond :: InIf :: parentPath, type_ = IfCondTypeMismatch { actual = condType } }
 
 
 checkExpr : Ctx -> Path -> F80.AST.Expr -> Type -> Result Error ()

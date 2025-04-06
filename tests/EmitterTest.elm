@@ -635,10 +635,9 @@ _end:
         , testEmit
             """
 // Shadowing const inside an if block
-main() {
-    const x = 1
-    const y = foo()
-    return x + y     // 1 + 9 = 10
+bar() {
+    const x = 4
+    return x        // 4
 }
 foo() {
     const x = 2
@@ -650,9 +649,10 @@ foo() {
     }
     return x + y    // 2 + 7 = 9
 }
-bar() {
-    const x = 4
-    return x        // 4
+main() {
+    const x = 1
+    const y = foo()
+    return x + y     // 1 + 9 = 10
 }
             """
             """
@@ -2170,7 +2170,7 @@ _end:
         , testEmit
             """
 main() {}
-fn() {
+fn(): U8 {
     return (if (true) 5 else 6)
 }
             """
@@ -2183,18 +2183,18 @@ _end:
 fn:
     ld a,255
     cp 255
-    jp nz,_ifexpr_decl_main_fn_0_else
+    jp nz,_ifexpr_decl_fn_stmt_0_else
     ld a,5
-    jp _ifexpr_decl_main_fn_0_end
-_ifexpr_decl_main_fn_0_else:
+    jp _ifexpr_decl_fn_stmt_0_end
+_ifexpr_decl_fn_stmt_0_else:
     ld a,6
-_ifexpr_decl_main_fn_0_end:
+_ifexpr_decl_fn_stmt_0_end:
     ret
             """
         , testEmit
             """
 main() {}
-fn() {
+fn(): U8 {
     return (if (true) 0 else (if (false) 1 else 2))
 }
             """
@@ -2207,19 +2207,19 @@ _end:
 fn:
     ld a,255
     cp 255
-    jp nz,_ifexpr_decl_main_fn_0_else
+    jp nz,_ifexpr_decl_fn_stmt_0_else
     ld a,0
-    jp _ifexpr_decl_main_fn_0_end
-_ifexpr_decl_main_fn_0_else:
+    jp _ifexpr_decl_fn_stmt_0_end
+_ifexpr_decl_fn_stmt_0_else:
     ld a,0
     cp 255
-    jp nz,_ifexpr_decl_main_fn_0_if_else_else
+    jp nz,_ifexpr_decl_fn_stmt_0_if_else_else
     ld a,1
-    jp _ifexpr_decl_main_fn_0_if_else_end
-_ifexpr_decl_main_fn_0_if_else_else:
+    jp _ifexpr_decl_fn_stmt_0_if_else_end
+_ifexpr_decl_fn_stmt_0_if_else_else:
     ld a,2
-_ifexpr_decl_main_fn_0_if_else_end:
-_ifexpr_decl_main_fn_0_end:
+_ifexpr_decl_fn_stmt_0_if_else_end:
+_ifexpr_decl_fn_stmt_0_end:
     ret
             """
         ]

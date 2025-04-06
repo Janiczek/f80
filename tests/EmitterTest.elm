@@ -108,8 +108,7 @@ testEmit source expected =
                         -}
                         |> expectEqualMultiline
                             (expected
-                                |> -- don't trim the beginning because of "    org 0x8000"
-                                   String.trimRight
+                                |> String.trim
                                 |> removeCommentsAndEmptyLines
                             )
 
@@ -143,7 +142,7 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,1
     push af     ; -> stack = x         (offset of x = 1)
@@ -194,6 +193,7 @@ fn:             ; -> stack = A(=Y),B(=X),RET, our base offset is 6 (for now)
     add ix,sp
     ld sp,ix    ; -> stack = A,B,RET
     ret
+end 0x8000
             """
         , testEmit
             """
@@ -209,7 +209,7 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,1
     push af
@@ -230,6 +230,7 @@ fn:
     add ix,sp
     ld sp,ix
     ret
+end 0x8000
             """
         , testEmit
             """
@@ -251,7 +252,7 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,4
     push af
@@ -352,6 +353,7 @@ foo:
     add ix,sp
     ld sp,ix
     ret
+end 0x8000
             """
         , testEmit
             """
@@ -371,7 +373,7 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,1
     push af
@@ -443,6 +445,7 @@ foo:
     add ix,sp
     ld sp,ix
     ret
+end 0x8000
             """
         ]
 
@@ -472,7 +475,7 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,1
     push af ; save var on the stack
@@ -484,6 +487,7 @@ main:
     ld (ix-1),a
 _end:
     jp _end
+end 0x8000
             """
         , testEmit
             """
@@ -495,7 +499,7 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,1
 
@@ -532,6 +536,7 @@ main:
     jp _end
 _end:
     jp _end
+end 0x8000
             """
         , testEmit
             """
@@ -546,7 +551,7 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     call foo
 _end:
@@ -568,6 +573,7 @@ foo:
     add ix,sp
     ld sp,ix
     ret
+end 0x8000
             """
         , testEmit
             """
@@ -578,7 +584,7 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,3
     push af
@@ -595,6 +601,7 @@ main:
     jp _end
 _end:
     jp _end
+end 0x8000
             """
         ]
 
@@ -609,12 +616,13 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,1
     push af
 _end:
     jp _end
+end 0x8000
             """
         , testEmit
             """
@@ -624,7 +632,7 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,1
     push af
@@ -632,6 +640,7 @@ main:
     push af
 _end:
     jp _end
+end 0x8000
             """
         , testEmit
             """
@@ -657,7 +666,7 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,1
     push af     ; save x at offset 1
@@ -735,6 +744,7 @@ _ifstmt_decl_foo_stmt_2_end:
     add ix,sp
     ld sp,ix
     ret
+end 0x8000
             """
         ]
 
@@ -749,12 +759,13 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,1
     push af
 _end:
     jp _end
+end 0x8000
             """
         , testEmit
             """
@@ -764,7 +775,7 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,1
     push af
@@ -772,6 +783,7 @@ main:
     push af
 _end:
     jp _end
+end 0x8000
             """
         ]
 
@@ -801,7 +813,7 @@ main(){
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     call fn
 _end:
@@ -809,6 +821,7 @@ _end:
 fn:
     ld a,1
     ret
+end 0x8000
             """
         ]
 
@@ -826,7 +839,7 @@ main(){
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,1
     push af      ; -> stack = 1  (not tracking offsets for args here)
@@ -841,6 +854,7 @@ fn:              ; -> stack = A(=1),RET, our base offset is 4, offset of a = 1
     add ix,sp
     ld a,(ix-1)  ; a has offset 1
     ret
+end 0x8000
             """
         ]
 
@@ -858,7 +872,7 @@ main(){
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,1
     push af      ; -> stack = 1   (not tracking offsets for args here)
@@ -881,6 +895,7 @@ fn:              ; -> stack = A(=1),B(=2),RET, our base offset is 6, offset of a
     pop bc
     add a,b
     ret
+end 0x8000
             """
         ]
 
@@ -898,7 +913,7 @@ main(){
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,1
     push af      ; -> stack = 1         (not tracking offsets for args here)
@@ -945,6 +960,7 @@ fn:              ; -> stack = A(=1),B(=2),C(=3),D(=4),E(=5),RET, our base offset
     pop bc
     add a,b
     ret
+end 0x8000
             """
         ]
 
@@ -958,10 +974,11 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
 _end:
     jp _end
+end 0x8000
             """
         , testEmit
             """
@@ -971,11 +988,12 @@ main() {
             """
             -- TODO optimize away jp _end before _end:
             """
-    org 0x8000
+org 0x8000
 main:
     jp _end
 _end:
     jp _end
+end 0x8000
             """
         , testEmit
             """
@@ -984,12 +1002,13 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,1
     jp _end
 _end:
     jp _end
+end 0x8000
             """
         , testEmit
             """
@@ -999,12 +1018,13 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
 _end:
     jp _end
 fn:
     ret
+end 0x8000
             """
         , testEmit
             """
@@ -1015,13 +1035,14 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
 _end:
     jp _end
 fn:
     ld a,1
     ret
+end 0x8000
             """
         ]
 
@@ -1032,43 +1053,48 @@ globals =
         [ testEmit
             "const x = 1"
             """
-    org 0x8000
+org 0x8000
 _end:
     jp _end
 x db 1
+end 0x8000
             """
         , testEmit
             "const str = \"Hello World!\""
             """
 str_length EQU 12
-    org 0x8000
+org 0x8000
 _end:
     jp _end
 str db 'Hello World!', 0
+end 0x8000
             """
         , testEmit
             "const bytes = [1,2,3]"
             """
-    org 0x8000
+org 0x8000
 _end:
     jp _end
 bytes db 1, 2, 3
+end 0x8000
             """
         , testEmit
             "const bool = true"
             """
-    org 0x8000
+org 0x8000
 _end:
     jp _end
 bool db 255
+end 0x8000
             """
         , testEmit
             "const bool = false"
             """
-    org 0x8000
+org 0x8000
 _end:
     jp _end
 bool db 0
+end 0x8000
             """
         , testEmit
             """
@@ -1077,58 +1103,65 @@ const other = global
             """
             """
 other EQU global
-    org 0x8000
+org 0x8000
 _end:
     jp _end
 global db 1
+end 0x8000
             """
         , testEmit
             "const binop = 1 + 2"
             """
-    org 0x8000
+org 0x8000
 _end:
     jp _end
 binop db 1 + 2
+end 0x8000
             """
         , testEmit
             "const binop = 1 - 2"
             """
-    org 0x8000
+org 0x8000
 _end:
     jp _end
 binop db 1 - 2
+end 0x8000
             """
         , testEmit
             "const binop = 1 < 2"
             """
-    org 0x8000
+org 0x8000
 _end:
     jp _end
 binop db 1 < 2
+end 0x8000
             """
         , testEmit
             "const binop = 1 > 2"
             """
-    org 0x8000
+org 0x8000
 _end:
     jp _end
 binop db 1 > 2
+end 0x8000
             """
         , testEmit
             "const unop = !true"
             """
-    org 0x8000
+org 0x8000
 _end:
     jp _end
 unop db NOT 255
+end 0x8000
             """
         , testEmit
             """const len = String.length("Hello World!")"""
             """
-    org 0x8000
+org 0x8000
 _end:
     jp _end
 len db 12
+end 0x8000
             """
         , testEmit
             """
@@ -1137,11 +1170,12 @@ const len = String.length(hello)
             """
             """
 hello_length EQU 5
-    org 0x8000
+org 0x8000
 _end:
     jp _end
 hello db 'Hello', 0
 len db hello_length
+end 0x8000
             """
         ]
 
@@ -1157,11 +1191,12 @@ main() {
             """
             """
 ROM_CLS EQU 0x0daf
-    org 0x8000
+org 0x8000
 main:
     call ROM_CLS
 _end:
     jp _end
+end 0x8000
             """
         ]
 
@@ -1179,7 +1214,7 @@ main() {
             """
 AT EQU 0x16
 hello_length EQU 5
-    org 0x8000
+org 0x8000
 main:
     ld de,773
     ld hl,hello
@@ -1201,6 +1236,7 @@ _renderTextLoop:
     inc hl
     jr _renderTextLoop
 hello db 'Hello', 0
+end 0x8000
             """
         , testEmit
             """
@@ -1211,7 +1247,7 @@ main() {
             """
 AT EQU 0x16
 _string_0_0_length EQU 5
-    org 0x8000
+org 0x8000
 main:
     ld de,773
     ld hl,_string_0_0
@@ -1233,6 +1269,7 @@ _renderTextLoop:
     inc hl
     jr _renderTextLoop
 _string_0_0 db 'Hello', 0
+end 0x8000
             """
         , testEmit
             """
@@ -1245,7 +1282,7 @@ main() {
 AT EQU 0x16
 _string_0_0_length EQU 5
 _string_0_1_length EQU 5
-    org 0x8000
+org 0x8000
 main:
     ld de,1
     ld hl,_string_0_0
@@ -1271,6 +1308,7 @@ _renderTextLoop:
     jr _renderTextLoop
 _string_0_0 db 'Hello', 0
 _string_0_1 db 'World', 0
+end 0x8000
             """
         ]
 
@@ -1289,7 +1327,7 @@ main() {
             -- TODO we can optimize this away later, for now this is translated verbatim
             """
 ROM_CLS EQU 0x0daf
-    org 0x8000
+org 0x8000
 main:
     ld a,255
     cp 255
@@ -1298,6 +1336,7 @@ main:
 _ifstmt_decl_main_stmt_0_end:
 _end:
     jp _end
+end 0x8000
             """
         , testEmit
             """
@@ -1312,7 +1351,7 @@ main() {
             -- TODO we can optimize this away later, for now this is translated verbatim
             """
 ROM_CLS EQU 0x0daf
-    org 0x8000
+org 0x8000
 main:
     ld a,255
     cp 255
@@ -1324,6 +1363,7 @@ _ifstmt_decl_main_stmt_0_else:
 _ifstmt_decl_main_stmt_0_end:
 _end:
     jp _end
+end 0x8000
             """
         , testEmit
             """
@@ -1336,7 +1376,7 @@ main() {
             -- TODO we can optimize this away later, for now this is translated verbatim
             """
 ROM_CLS EQU 0x0daf
-    org 0x8000
+org 0x8000
 main:
     ld a,2
     push af
@@ -1355,6 +1395,7 @@ _lt_decl_main_stmt_0_cond_binop_end:
 _ifstmt_decl_main_stmt_0_end:
 _end:
     jp _end
+end 0x8000
             """
         , testEmit
             """
@@ -1367,7 +1408,7 @@ main() {
             -- TODO we can optimize this away later, for now this is translated verbatim
             """
 ROM_CLS EQU 0x0daf
-    org 0x8000
+org 0x8000
 main:
     ld a,1
     push af
@@ -1386,6 +1427,7 @@ _gt_decl_main_stmt_0_cond_binop_end:
 _ifstmt_decl_main_stmt_0_end:
 _end:
     jp _end
+end 0x8000
             """
         , testEmit
             """
@@ -1400,7 +1442,7 @@ main() {
             """
             """
 ROM_CLS EQU 0x0daf
-    org 0x8000
+org 0x8000
 main:
     call fn
     cp 255
@@ -1412,6 +1454,7 @@ _end:
 fn:
     ld a,255
     ret
+end 0x8000
             """
         ]
 
@@ -1431,7 +1474,7 @@ main() {
             """
 AT EQU 0x16
 hello_length EQU 5
-    org 0x8000
+org 0x8000
 main:
 decl_main_stmt_0:
     ld de,0
@@ -1455,6 +1498,7 @@ _renderTextLoop:
     inc hl
     jr _renderTextLoop
 hello db 'Hello', 0
+end 0x8000
             """
         , testEmit
             """
@@ -1470,7 +1514,7 @@ main() {
             """
 AT EQU 0x16
 hello_length EQU 5
-    org 0x8000
+org 0x8000
 main:
 decl_main_stmt_0:
 decl_main_stmt_0_loop_stmt_0:
@@ -1496,6 +1540,7 @@ _renderTextLoop:
     inc hl
     jr _renderTextLoop
 hello db 'Hello', 0
+end 0x8000
             """
         ]
 
@@ -1512,7 +1557,7 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     jp _wait_decl_main_stmt_0_start
 _wait_decl_main_stmt_0_end:
@@ -1532,6 +1577,7 @@ _wait_decl_main_stmt_0_any_pressed:
     jp _wait_decl_main_stmt_0_any_pressed
 _wait_decl_main_stmt_0_onJ:
     jp _wait_decl_main_stmt_0_end
+end 0x8000
             """
         , testEmit
             """
@@ -1543,7 +1589,7 @@ main() {
             """
             """
 ROM_CLS EQU 0x0daf
-    org 0x8000
+org 0x8000
 main:
     jp _wait_decl_main_stmt_0_start
 _wait_decl_main_stmt_0_end:
@@ -1564,6 +1610,7 @@ _wait_decl_main_stmt_0_any_pressed:
 _wait_decl_main_stmt_0_onJ:
     call ROM_CLS
     jp _wait_decl_main_stmt_0_end
+end 0x8000
             """
         , testEmit
             """
@@ -1575,7 +1622,7 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     jp _wait_decl_main_stmt_0_start
 _wait_decl_main_stmt_0_end:
@@ -1601,6 +1648,7 @@ _wait_decl_main_stmt_0_onJ:
     jp _wait_decl_main_stmt_0_end
 _wait_decl_main_stmt_0_onK:
     jp _wait_decl_main_stmt_0_end
+end 0x8000
             """
         ]
 
@@ -1645,7 +1693,7 @@ main(){
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     call fn
     push af
@@ -1654,6 +1702,7 @@ _end:
 fn:
     ld a,1
     ret
+end 0x8000
             """
         ]
 
@@ -1671,7 +1720,7 @@ main(){
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,1
     push af      ; -> stack = 1  (not tracking offsets for args here)
@@ -1687,6 +1736,7 @@ fn:              ; -> stack = A(=1),RET, our base offset is 4, offset of a = 1
     add ix,sp
     ld a,(ix-1)  ; a has offset 1
     ret
+end 0x8000
             """
         ]
 
@@ -1704,7 +1754,7 @@ main(){
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,1
     push af      ; -> stack = 1   (not tracking offsets for args here)
@@ -1728,6 +1778,7 @@ fn:              ; -> stack = A(=1),B(=2),RET, our base offset is 6, offset of a
     pop bc
     add a,b
     ret
+end 0x8000
             """
         ]
 
@@ -1745,7 +1796,7 @@ main(){
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,1
     push af      ; -> stack = 1         (not tracking offsets for args here)
@@ -1793,6 +1844,7 @@ fn:              ; -> stack = A(=1),B(=2),C(=3),D(=4),E(=5),RET, our base offset
     pop bc
     add a,b
     ret
+end 0x8000
             """
         ]
 
@@ -1808,12 +1860,13 @@ main() {
             """
             """
 ROM_CLS EQU 0x0daf
-    org 0x8000
+org 0x8000
 main:
     call ROM_CLS
     push af
 _end:
     jp _end
+end 0x8000
             """
         ]
 
@@ -1829,7 +1882,7 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,0
     call _stringFromU8
@@ -1864,6 +1917,7 @@ _u8DivModEnd:
     add a,b
     ret
 _stringFromU8Buffer db 4
+end 0x8000
             """
         , testEmit
             """
@@ -1874,7 +1928,7 @@ main() {
             """
             """
 AT EQU 0x16
-    org 0x8000
+org 0x8000
 main:
     ld a,0
     call _stringFromU8
@@ -1929,6 +1983,7 @@ _u8DivModEnd:
     add a,b
     ret
 _stringFromU8Buffer db 4
+end 0x8000
             """
         ]
 
@@ -1946,7 +2001,7 @@ main() {
             """
 AT EQU 0x16
 hello_length EQU 5
-    org 0x8000
+org 0x8000
 main:
     ld de,773
     ld hl,hello
@@ -1969,6 +2024,7 @@ _renderTextLoop:
     inc hl
     jr _renderTextLoop
 hello db 'Hello', 0
+end 0x8000
             """
         ]
 
@@ -1987,7 +2043,7 @@ main() {
             """
             """
 _string_0_0_length EQU 5
-    org 0x8000
+org 0x8000
 main:
 _end:
     jp _end
@@ -1995,6 +2051,7 @@ fn:
     ld hl,_string_0_0
     ret
 _string_0_0 db 'Hello', 0
+end 0x8000
             """
         ]
 
@@ -2009,13 +2066,14 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,255
     neg
     push af
 _end:
     jp _end
+end 0x8000
             """
         ]
 
@@ -2030,7 +2088,7 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,20
     push af
@@ -2040,6 +2098,7 @@ main:
     jp _end
 _end:
     jp _end
+end 0x8000
             """
         , testEmit
             """
@@ -2048,7 +2107,7 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,20
     push af
@@ -2058,6 +2117,7 @@ main:
     jp _end
 _end:
     jp _end
+end 0x8000
             """
         , testEmit
             """
@@ -2066,7 +2126,7 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,10
     push af
@@ -2082,6 +2142,7 @@ _gt_decl_main_stmt_0_binop_end:
     jp _end
 _end:
     jp _end
+end 0x8000
             """
         , testEmit
             """
@@ -2090,7 +2151,7 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,20
     push af
@@ -2106,6 +2167,7 @@ _lt_decl_main_stmt_0_binop_end:
     jp _end
 _end:
     jp _end
+end 0x8000
             """
         ]
 
@@ -2122,13 +2184,14 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
 _end:
     jp _end
 fn:
     ld a,1
     ret
+end 0x8000
             """
         , testEmit
             """
@@ -2139,13 +2202,14 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
 _end:
     jp _end
 fn:
     ld a,42
     ret
+end 0x8000
             """
         ]
 
@@ -2162,13 +2226,14 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
 _end:
     jp _end
 fn:
     ld a,255
     ret
+end 0x8000
             """
         , testEmit
             """
@@ -2179,13 +2244,14 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
 _end:
     jp _end
 fn:
     ld a,0
     ret
+end 0x8000
             """
         ]
 
@@ -2201,7 +2267,7 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,1
     push af
@@ -2211,6 +2277,7 @@ main:
     jp _end
 _end:
     jp _end
+end 0x8000
             """
         , testEmit
             """
@@ -2221,7 +2288,7 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,1
     push af
@@ -2233,6 +2300,7 @@ main:
     jp _end
 _end:
     jp _end
+end 0x8000
             """
         , testEmit
             """
@@ -2243,7 +2311,7 @@ main() {
 }
             """
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,1
     push af
@@ -2255,6 +2323,7 @@ main:
     jp _end
 _end:
     jp _end
+end 0x8000
             """
         ]
 
@@ -2270,7 +2339,7 @@ main() {
             """
             -- TODO we can optimize this away later, for now this is translated verbatim
             """
-    org 0x8000
+org 0x8000
 main:
     ld a,255
     cp 255
@@ -2283,6 +2352,7 @@ _ifexpr_decl_main_stmt_0_end:
     push af
 _end:
     jp _end
+end 0x8000
             """
         , testEmit
             """
@@ -2293,7 +2363,7 @@ fn(): U8 {
             """
             -- TODO we can optimize this away later, for now this is translated verbatim
             """
-    org 0x8000
+org 0x8000
 main:
 _end:
     jp _end
@@ -2307,6 +2377,7 @@ _ifexpr_decl_fn_stmt_0_else:
     ld a,6
 _ifexpr_decl_fn_stmt_0_end:
     ret
+end 0x8000
             """
         , testEmit
             """
@@ -2317,7 +2388,7 @@ fn(): U8 {
             """
             -- TODO we can optimize this away later, for now this is translated verbatim
             """
-    org 0x8000
+org 0x8000
 main:
 _end:
     jp _end
@@ -2338,6 +2409,7 @@ _ifexpr_decl_fn_stmt_0_if_else_else:
 _ifexpr_decl_fn_stmt_0_if_else_end:
 _ifexpr_decl_fn_stmt_0_end:
     ret
+end 0x8000
             """
         ]
 

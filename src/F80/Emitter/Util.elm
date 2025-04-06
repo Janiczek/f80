@@ -1,6 +1,6 @@
 module F80.Emitter.Util exposing
     ( i, l
-    , mainEpilogue, mainPrologue
+    , mainEpilogue, mainPrologue, programEpilogue
     , emitBinOp, emitUnaryOp
     , globalStringLengthLabel
     )
@@ -8,7 +8,7 @@ module F80.Emitter.Util exposing
 {-|
 
 @docs i, l
-@docs mainEpilogue, mainPrologue
+@docs mainEpilogue, mainPrologue, programEpilogue
 @docs emitBinOp, emitUnaryOp
 @docs globalStringLengthLabel
 
@@ -29,7 +29,7 @@ i instruction =
 
 mainPrologue : List String
 mainPrologue =
-    [ i "org 0x8000"
+    [ "org 0x8000"
     ]
 
 
@@ -37,6 +37,16 @@ mainEpilogue : List String
 mainEpilogue =
     [ l "_end"
     , i "jp _end"
+    ]
+
+
+{-| This expects the program to be assembled with `pasmo --tapbas` or
+`pasmo --tzxbas`. That will cause PASMO to add BASIC loader code to run the
+program automatically.
+-}
+programEpilogue : List String
+programEpilogue =
+    [ "end 0x8000"
     ]
 
 

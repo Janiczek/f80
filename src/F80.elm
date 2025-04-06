@@ -11,7 +11,11 @@ import Parser
 port println : String -> Cmd msg
 
 
-main : Program () () Never
+type alias Flags =
+    { filename : String }
+
+
+main : Program Flags () Never
 main =
     Platform.worker
         { init = init
@@ -31,13 +35,15 @@ run sourceCode =
         |> Result.map (String.join "\n")
 
 
-init : () -> ( (), Cmd Never )
-init () =
-    let
-        result : Result F80.Error.Error String
-        result =
-            run Example.sourceCode
-    in
-    ( ()
-    , println (Debug.toString result)
-    )
+init : Flags -> ( (), Cmd Never )
+init { filename } =
+    case run Example.sourceCode of
+        Err err ->
+            ( ()
+            , println (Debug.toString err)
+            )
+
+        Ok asm ->
+            ( ()
+            , println asm
+            )

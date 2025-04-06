@@ -158,7 +158,7 @@ ROM_CLS EQU 0x0daf
 _string_0_0_length EQU 9
 _string_0_1_length EQU 20
 _string_1_0_length EQU 3
-    org 0x8000
+org 0x8000
 main:
     call ROM_CLS
     ld a,0
@@ -284,4 +284,5 @@ _stringFromU8Buffer db 4
 _string_0_0 db 'Counter: ', 0
 _string_0_1 db 'Press J (-) or K (+)', 0
 _string_1_0 db '   ', 0
+end 0x8000
     """

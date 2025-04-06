@@ -49,6 +49,7 @@ toString output =
         , output.data
             |> Dict.toList
             |> List.map (\( k, v ) -> k ++ " db " ++ v)
+        , F80.Emitter.Util.programEpilogue
         ]
 
 

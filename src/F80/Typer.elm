@@ -296,6 +296,7 @@ checkStmt ctx parentPath stmt =
             checkBlock ctx parentPath block
 
         F80.AST.If data ->
+            -- TODO we should make the error more specific (IfCondTypeMismatch)
             case checkExpr ctx parentPath data.cond Bool of
                 Err err ->
                     Err err
@@ -365,7 +366,7 @@ checkStmt ctx parentPath stmt =
                 Err err ->
                     Err err
 
-                Ok () ->
+                Ok _ ->
                     Ok ctx_
 
         F80.AST.Return maybeExpr ->
@@ -484,7 +485,7 @@ inferExpr ctx parentPath expr =
                     )
 
         F80.AST.CallExpr data ->
-            Debug.todo "infer call - don't forget to add Render.text if used"
+            inferCall ctx parentPath data
 
         F80.AST.IfExpr data ->
             case inferExpr ctx parentPath data.cond of
@@ -511,6 +512,20 @@ inferExpr ctx parentPath expr =
 
                     else
                         Err { at = InIfCond :: InIf :: parentPath, type_ = IfCondTypeMismatch { actual = condType } }
+
+
+inferCall : Ctx -> Path -> F80.AST.CallData -> Result Error ( Ctx, Type )
+inferCall ctx parentPath data =
+    let
+        ctx_ =
+            updateCtxForPreludeCall data.fn ctx
+    in
+    case checkCall ctx_ parentPath data of
+        Err err ->
+            Err err
+
+        Ok { returnType } ->
+            Ok ( ctx_, returnType )
 
 
 checkExpr : Ctx -> Path -> F80.AST.Expr -> Type -> Result Error ()
@@ -571,6 +586,7 @@ checkExpr ctx parentPath expr type_ =
                     updateCtxForPreludeCall data.fn ctx
             in
             checkCall ctx_ parentPath data
+                |> Result.map (\_ -> ())
 
         F80.AST.IfExpr data ->
             checkExpr ctx parentPath data.cond type_
@@ -599,13 +615,13 @@ updateCtxForPreludeCall fnName ctx =
         prelude
 
 
-checkCall : Ctx -> Path -> F80.AST.CallData -> Result Error ()
+checkCall : Ctx -> Path -> F80.AST.CallData -> Result Error { returnType : Type }
 checkCall ctx parentPath data =
     case Dict.get [ InDecl data.fn ] ctx of
         Nothing ->
             Err { at = parentPath, type_ = FunctionNotFound { name = data.fn } }
 
-        Just ((Function paramsType restType) as fnType) ->
+        Just ((Function paramsType returnType) as fnType) ->
             let
                 expectedArity =
                     List.length paramsType
@@ -624,25 +640,34 @@ checkCall ctx parentPath data =
                     }
 
             else
-                List.map2 Tuple.pair data.args paramsType
-                    |> List.foldl
-                        (\( arg, paramType ) accResult ->
-                            case accResult of
-                                Err err ->
-                                    Err err
-
-                                Ok () ->
-                                    case checkExpr ctx parentPath arg paramType of
-                                        Ok () ->
-                                            Ok ()
-
+                let
+                    afterCheckingArgs =
+                        List.map2 Tuple.pair data.args paramsType
+                            |> List.foldl
+                                (\( arg, paramType ) accResult ->
+                                    case accResult of
                                         Err err ->
                                             Err err
-                        )
-                        (Ok ())
 
-        Just actual ->
-            Err { at = parentPath, type_ = GlobalNotFunction { name = data.fn, actual = actual } }
+                                        Ok () ->
+                                            case checkExpr ctx parentPath arg paramType of
+                                                Ok () ->
+                                                    Ok ()
+
+                                                Err err ->
+                                                    Err err
+                                )
+                                (Ok ())
+                in
+                case afterCheckingArgs of
+                    Err err ->
+                        Err err
+
+                    Ok () ->
+                        Ok { returnType = returnType }
+
+        Just nonFnType ->
+            Err { at = parentPath, type_ = GlobalNotFunction { name = data.fn, actual = nonFnType } }
 
 
 checkEqual : Path -> Type -> Type -> Result Error ()

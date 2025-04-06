@@ -160,7 +160,7 @@ main:
     ld ix,4     ; cleanup 2 args
     add ix,sp
     ld sp,ix    ; -> stack = x,y
-    jp _end
+    push af
 _end:
     jp _end
 fn:             ; -> stack = A(=Y),B(=X),RET, our base offset is 6 (for now)
@@ -282,7 +282,7 @@ main:
     add b
     pop bc
     add b
-    jp _end
+    push af
 _end:
     jp _end
 bar:
@@ -386,7 +386,7 @@ main:
     ld sp,ix
     pop bc
     add b
-    jp _end
+    push af
 _end:
     jp _end
 bar:
@@ -635,11 +635,11 @@ _end:
         , testEmit
             """
 // Shadowing const inside an if block
-bar() {
+bar(): U8 {
     const x = 4
     return x        // 4
 }
-foo() {
+foo(): U8 {
     const x = 2
     let y = 0
     if (true) {
@@ -652,7 +652,7 @@ foo() {
 main() {
     const x = 1
     const y = foo()
-    return x + y     // 1 + 9 = 10
+    const z = x + y // 1 + 9 = 10
 }
             """
             """
@@ -672,7 +672,7 @@ main:
     pop bc
     add b
     ; no cleanup of locals in main
-    jp _end
+    push af
 _end:
     jp _end
 bar:
@@ -693,7 +693,7 @@ foo:
     push af
     ld a,255    ; IF
     cp 255
-    jp nz,_ifstmt_decl_main_foo_2_end
+    jp nz,_ifstmt_decl_foo_stmt_2_end
     ; THEN --------------------------
     ld a,3
     push af     ; save x at offset 7
@@ -719,7 +719,7 @@ foo:
     ld sp,ix
     ; END THEN --------------------------
     ; NO ELSE ---------------------------
-_ifstmt_decl_main_foo_2_end:
+_ifstmt_decl_foo_stmt_2_end:
     ld ix,6
     add ix,sp
     ld a,(ix-5) ; load y
@@ -1635,18 +1635,18 @@ generic0ArgCallExpr =
     Test.describe "generic 0-arg call expr"
         [ testEmit
             """
-main(){
-    return fn()
-}
 fn(): U8 {
     return 1
+}
+main(){
+    const x = fn()
 }
             """
             """
 org 0x8000
 main:
     call fn
-    jp _end
+    push af
 _end:
     jp _end
 fn:
@@ -1661,11 +1661,11 @@ generic1ArgCallExpr =
     Test.describe "generic 1-arg call expr"
         [ testEmit
             """
-main(){
-    return fn(1)
-}
 fn(a: U8): U8 {
     return a
+}
+main(){
+    const x = fn(1)
 }
             """
             """
@@ -1677,7 +1677,7 @@ main:
     ld ix,2      ; -> stack = <empty>
     add ix,sp
     ld sp,ix
-    jp _end
+    push af
 _end:
     jp _end
 fn:              ; -> stack = A(=1),RET, our base offset is 4, offset of a = 1
@@ -1694,11 +1694,11 @@ generic2ArgCallExpr =
     Test.describe "generic 2-arg call expr"
         [ testEmit
             """
-main(){
-    const x = fn(1,2)
-}
 fn(a: U8, b: U8): U8 {
     return a + b
+}
+main(){
+    const x = fn(1,2)
 }
             """
             """
@@ -1712,7 +1712,7 @@ main:
     ld ix,4      ; -> cleanup of call args, stack = <empty>
     add ix,sp
     ld sp,ix
-    jp _end
+    push af
 _end:
     jp _end
 fn:              ; -> stack = A(=1),B(=2),RET, our base offset is 6, offset of a = 1, offset of b = 3
@@ -1759,7 +1759,7 @@ main:
     ld ix,10      ; -> cleanup of call args, stack = <empty>
     add ix,sp
     ld sp,ix
-    jp _end
+    push af
 _end:
     jp _end
 fn:              ; -> stack = A(=1),B(=2),C(=3),D(=4),E(=5),RET, our base offset is 12, offsets of a,b,c,d,e are 1,3,5,7,9
